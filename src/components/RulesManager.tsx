@@ -10,11 +10,12 @@ const WEEKDAYS_ONLY = WEEKDAYS.filter((d) => d !== "SAT" && d !== "SUN");
 
 /** Forslag basert på de fire kategoriene. Brukeren legger dem til og justerer. */
 const SUGGESTIONS: RuleInput[] = [
-  { strength: "SOFT", enabled: true, sourceText: "Studere 5 timer skole hver dag", params: { kind: "DAILY_TIME", category: "SCHOOL", minutes: 300, days: EVERY_DAY } },
-  { strength: "SOFT", enabled: true, sourceText: "3–4 timer religion", params: { kind: "WEEKLY_TIME", category: "RELIGION", minMinutes: 180, maxMinutes: 240 } },
+  { strength: "SOFT", enabled: true, sourceText: "Studere 4 timer hver dag, helst i to økter", params: { kind: "DAILY_TIME", category: "SCHOOL", minutes: 240, days: EVERY_DAY, sessions: 2 } },
+  { strength: "SOFT", enabled: true, sourceText: "3–4 timer religion", params: { kind: "WEEKLY_TIME", category: "RELIGION", minMinutes: 180, maxMinutes: 240, sessions: null } },
+  { strength: "SOFT", enabled: true, sourceText: "Trene 4 ganger i uka, 2 timer hver gang", params: { kind: "WEEKLY_TIME", category: "TRAINING", minMinutes: 480, maxMinutes: null, sessions: 4 } },
   { strength: "SOFT", enabled: true, sourceText: "Være hjemme rundt kl. 19 de fleste dager", params: { kind: "LATEST_END", time: "19:00", days: WEEKDAYS_ONLY, location: "OUT", category: null } },
-  { strength: "SOFT", enabled: true, sourceText: "Tid med familie og venner hver dag", params: { kind: "DAILY_TIME", category: "SOCIAL", minutes: 90, days: EVERY_DAY } },
-  { strength: "SOFT", enabled: true, sourceText: "Litt alenetid hver kveld", params: { kind: "DAILY_TIME", category: "ALONE", minutes: 60, days: EVERY_DAY } },
+  { strength: "SOFT", enabled: true, sourceText: "Tid med familie og venner hver dag", params: { kind: "DAILY_TIME", category: "SOCIAL", minutes: 90, days: EVERY_DAY, sessions: null } },
+  { strength: "SOFT", enabled: true, sourceText: "Litt alenetid hver kveld", params: { kind: "DAILY_TIME", category: "ALONE", minutes: 60, days: EVERY_DAY, sessions: null } },
 ];
 
 const sameParams = (a: RuleInput, b: RuleInput) => JSON.stringify(a.params) === JSON.stringify(b.params);
@@ -49,7 +50,7 @@ export function RulesManager() {
         <ProgressionCard />
         <section className="space-y-3 rounded-xl border border-line bg-surface p-4">
           <h2 className="font-semibold">Forslag</h2>
-          <p className="text-sm text-muted">Legg til det som passer, og juster tallene etterpå. Bønnetidene er alltid faste og trenger ingen regel.</p>
+          <p className="text-sm text-muted">Legg til det som passer, og juster tallene etterpå. Bønnetidene er alltid faste og trenger ingen regel. Jobbvakter legger du inn i kalenderen med «+ Ny blokk» (kategori Jobb), og kan gjenta dem hver uke.</p>
           {suggestions.length === 0 ? (
             <p className="text-sm text-muted">Du har lagt til alle forslagene.</p>
           ) : (

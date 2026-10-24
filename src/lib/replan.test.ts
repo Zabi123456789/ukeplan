@@ -13,9 +13,9 @@ let n = 0;
 const rule = (params: RuleParams): Rule => ({ id: `r${++n}`, strength: "SOFT", enabled: true, sourceText: null, params });
 const rules = [
   ...DEFAULT_RULES.map((r, i) => ({ ...r, id: `d${i}` })),
-  rule({ kind: "DAILY_TIME", category: "SCHOOL", minutes: 300, days: [...ALL] }),
-  rule({ kind: "WEEKLY_TIME", category: "RELIGION", minMinutes: 180, maxMinutes: 240 }),
-  rule({ kind: "DAILY_TIME", category: "SOCIAL", minutes: 90, days: [...ALL] }),
+  rule({ kind: "DAILY_TIME", category: "SCHOOL", minutes: 300, days: [...ALL], sessions: null }),
+  rule({ kind: "WEEKLY_TIME", category: "RELIGION", minMinutes: 180, maxMinutes: 240, sessions: null }),
+  rule({ kind: "DAILY_TIME", category: "SOCIAL", minutes: 90, days: [...ALL], sessions: null }),
 ];
 
 /** En planlagt uke uten opptrapping. */

@@ -1,15 +1,18 @@
 import { z } from "zod";
 
-// Delt mellom klient og server, så denne filen importerer ikke Prisma.
+// Kategorier, typer og skjemaer for blokker i kalenderen.
 
-export const CATEGORIES = ["RELIGION", "SCHOOL", "SOCIAL", "ALONE", "OTHER"] as const;
+// Rekkefølgen er også prioriteten når planleggeren fordeler tid.
+export const CATEGORIES = ["RELIGION", "SCHOOL", "TRAINING", "SOCIAL", "ALONE", "WORK", "OTHER"] as const;
 export type Category = (typeof CATEGORIES)[number];
 
 export const CATEGORY_INFO: Record<Category, { label: string; color: string }> = {
   RELIGION: { label: "Religion", color: "#0f766e" },
   SCHOOL: { label: "Skole", color: "#1d4ed8" },
+  TRAINING: { label: "Trening", color: "#15803d" },
   SOCIAL: { label: "Familie og venner", color: "#c2410c" },
   ALONE: { label: "Alenetid", color: "#7c3aed" },
+  WORK: { label: "Jobb", color: "#a16207" },
   OTHER: { label: "Annet", color: "#475569" },
 };
 

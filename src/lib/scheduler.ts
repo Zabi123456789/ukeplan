@@ -10,8 +10,9 @@ import { addDays, localDateTime, localParts, weekDates, weekdayOf, weekRange } f
 //    sperret tid og det som allerede har vært.
 // 2. Regn ut hvor mye tid hver kategori trenger per dag (tid per dag) og i uka (tid per uke,
 //    fordelt jevnt på dagene som er igjen).
-// 3. Legg økter dag for dag: harde regler først, så skole, religion, familie/venner, alenetid.
-//    Hver økt får det ledige tidspunktet som passer kategorien best, med 15 min pause mellom økter.
+// 3. Legg økter dag for dag: harde regler først, så kategoriene i fast rekkefølge.
+//    Hver økt får det ledige tidspunktet som passer kategorien best, med 15 min pause mellom økter
+//    og helst flere timer mellom økter i samme kategori samme dag.
 // 4. Sjekk resultatet med den samme valideringen som alle planer går gjennom.
 
 const MINUTE = 60_000;
@@ -20,13 +21,25 @@ const MIN_SESSION = 30;
 
 const SESSION: Record<Category, { max: number; title: string }> = {
   SCHOOL: { max: 90, title: "Studietid" },
+  TRAINING: { max: 60, title: "Trening" },
   RELIGION: { max: 45, title: "Religiøs tid" },
   SOCIAL: { max: 90, title: "Familie og venner" },
   ALONE: { max: 60, title: "Alenetid" },
+  WORK: { max: 240, title: "Jobb" },
   OTHER: { max: 60, title: "Annet" },
 };
 
-type Task = { date: string; category: Category; minutes: number; strength: Strength; weekly: boolean };
+type Task = {
+  date: string;
+  category: Category;
+  minutes: number;
+  strength: Strength;
+  weekly: boolean;
+  /** Lengste økt. Settes når regelen sier hvor mange økter tiden skal deles i. */
+  sessionMax?: number;
+  /** Økten skal ha nøyaktig denne lengden (ukesmål med fast antall økter). Kortes ikke ned, men flyttes. */
+  fixedLength?: boolean;
+};
 
 export type ScheduleInput = {
   monday: string;
@@ -69,8 +82,16 @@ export function scheduleWeek(input: ScheduleInput): ScheduleResult {
     carry = [];
     today.sort((a, b) => rank(a) - rank(b));
     for (const task of today) {
-      const left = placeTask(task, free, blocks, rules, input.fixed);
-      if (left > 0 && task.weekly) carry.push({ ...task, minutes: left });
+      // Ukesmål prøver først å holde myke frister; går det ikke, flyttes de til neste dag
+      const left = placeTask(task, free, blocks, rules, input.fixed, !task.weekly);
+      if (left >= MIN_SESSION && task.weekly) carry.push({ ...task, minutes: left });
+    }
+  }
+  // Det som ikke fikk plass innen fristene noen dag, legges der det får plass
+  for (const task of carry) {
+    for (const date of dates) {
+      const left = placeTask({ ...task, date }, free, blocks, rules, input.fixed, true);
+      if (left < task.minutes) break;
     }
   }
 
@@ -79,9 +100,9 @@ export function scheduleWeek(input: ScheduleInput): ScheduleResult {
   return { blocks, window, errors, warnings, summary: summarize(blocks, warnings.length + errors.length) };
 }
 
-/** Harde regler først, så kategoriene i fast rekkefølge. */
+/** Harde regler først, så lange økter med fast lengde (de er vanskeligst å få plass til), så kategoriene i fast rekkefølge. */
 function rank(t: Task) {
-  return (t.strength === "HARD" ? 0 : 10) + CATEGORIES.indexOf(t.category);
+  return (t.strength === "HARD" ? 0 : 100) + (t.fixedLength ? 0 : 10) + CATEGORIES.indexOf(t.category);
 }
 
 function existingMinutes(fixed: FixedBlock[], category: Category, date: string | null) {
@@ -101,7 +122,9 @@ function buildTasks(input: ScheduleInput, rules: Rule[], plannable: string[]): T
       const prev = daily.get(key);
       const minutes = Math.max(prev?.minutes ?? 0, r.params.minutes);
       const strength = prev?.strength === "HARD" || r.strength === "HARD" ? "HARD" : "SOFT";
-      daily.set(key, { date, category: r.params.category, minutes, strength, weekly: false });
+      // «4 t i to økter» gir økter på inntil 2 t
+      const sessionMax = r.params.sessions ? Math.ceil(r.params.minutes / r.params.sessions / GAP) * GAP : prev?.sessionMax;
+      daily.set(key, { date, category: r.params.category, minutes, strength, weekly: false, sessionMax });
     }
   }
   const tasks = [...daily.values()]
@@ -111,33 +134,40 @@ function buildTasks(input: ScheduleInput, rules: Rule[], plannable: string[]): T
   // Tid per uke: det som mangler, etter det som finnes og det som er planlagt per dag
   for (const r of rules) {
     if (r.params.kind !== "WEEKLY_TIME" || plannable.length === 0) continue;
-    const { category, minMinutes } = r.params;
+    const { category, minMinutes, sessions } = r.params;
     const planned = tasks.filter((t) => t.category === category).reduce((s, t) => s + t.minutes, 0);
     const remaining = minMinutes - existingMinutes(input.fixed, category, null) - planned;
     if (remaining < GAP) continue;
-    // Fordel på så mange dager at hver dag får minst en halvtime, spredt jevnt utover uka
-    const n = Math.min(plannable.length, Math.max(1, Math.floor(remaining / MIN_SESSION)));
+    // Fordel på ønsket antall økter, eller så mange at hver får minst en halvtime, spredt jevnt utover uka
+    const n = Math.min(plannable.length, sessions ?? Math.max(1, Math.floor(remaining / MIN_SESSION)));
     let left = remaining;
     for (let i = 0; i < n; i++) {
       const date = plannable[Math.floor((i * plannable.length) / n)];
       const share = i === n - 1 ? left : Math.min(left, roundTo15(remaining / n));
       left -= share;
-      tasks.push({ date, category, minutes: share, strength: r.strength, weekly: true });
+      tasks.push({ date, category, minutes: share, strength: r.strength, weekly: true, sessionMax: sessions ? share : undefined, fixedLength: !!sessions });
     }
   }
   return tasks;
 }
 
 /** Legger ut en oppgave som én eller flere økter. Gir tilbake minutter som ikke fikk plass. */
-function placeTask(task: Task, free: Map<string, Interval[]>, blocks: ProposedBlock[], rules: Rule[], fixed: FixedBlock[]) {
+function placeTask(task: Task, free: Map<string, Interval[]>, blocks: ProposedBlock[], rules: Rule[], fixed: FixedBlock[], allowLate: boolean) {
   let left = task.minutes;
   while (left >= GAP) {
-    const max = SESSION[task.category].max;
+    const max = task.sessionMax ?? SESSION[task.category].max;
     // Unngå en liten rest til slutt: 100 min blir 50 + 50, ikke 90 + 10
     let length = left <= max ? left : left - max < MIN_SESSION ? roundTo15(left / 2) : max;
     let placed = false;
-    while (!placed && length >= Math.min(MIN_SESSION, left)) {
-      const slot = bestSlot(task, length, free.get(task.date) ?? [], rules, fixed);
+    // En rest under en halvtime legges ikke ut som egen økt (med mindre hele oppgaven er så kort)
+    if (left < MIN_SESSION && left < task.minutes) break;
+    const shortest = task.fixedLength ? length : Math.min(MIN_SESSION, left);
+    while (!placed && length >= shortest) {
+      // Bønner teller ikke: religiøs tid skal gjerne ligge rett etter en bønn
+      const sameDay = [...fixed.filter((f) => f.source !== "PRAYER"), ...blocks].filter(
+        (b) => b.category === task.category && localParts(b.start).date === task.date,
+      );
+      const slot = bestSlot(task, length, free.get(task.date) ?? [], rules, fixed, sameDay, allowLate);
       if (slot) {
         const end = new Date(slot.getTime() + length * MINUTE);
         blocks.push({
@@ -145,7 +175,7 @@ function placeTask(task: Task, free: Map<string, Interval[]>, blocks: ProposedBl
           category: task.category,
           start: slot,
           end,
-          location: locationFor(task.date, end, rules),
+          location: locationFor(task.date, end, rules, task.category),
         });
         const padded = { start: new Date(slot.getTime() - GAP * MINUTE), end: new Date(end.getTime() + GAP * MINUTE) };
         free.set(task.date, subtract(free.get(task.date) ?? [], [padded]));
@@ -160,7 +190,10 @@ function placeTask(task: Task, free: Map<string, Interval[]>, blocks: ProposedBl
   return left;
 }
 
-function bestSlot(task: Task, length: number, intervals: Interval[], rules: Rule[], fixed: FixedBlock[]): Date | null {
+/** Økter i samme kategori samme dag bør ha minst tre timer mellom seg, så tiden spres utover dagen. */
+const SPREAD_MIN = 180;
+
+function bestSlot(task: Task, length: number, intervals: Interval[], rules: Rule[], fixed: FixedBlock[], sameDay: Interval[], allowLate: boolean): Date | null {
   const deadline = deadlineFor(task.date, task.category, rules);
   let best: { start: Date; score: number } | null = null;
   for (const iv of intervals) {
@@ -168,8 +201,12 @@ function bestSlot(task: Task, length: number, intervals: Interval[], rules: Rule
       const start = new Date(t);
       const end = t + length * MINUTE;
       let score = preference(task.category, start, task.date, fixed);
+      for (const b of sameDay) {
+        const distance = Math.max(b.start.getTime() - end, t - b.end.getTime()) / MINUTE;
+        if (distance < SPREAD_MIN) score += (SPREAD_MIN - distance) * 3;
+      }
       if (deadline && end > deadline.time.getTime()) {
-        if (deadline.strength === "HARD") continue;
+        if (deadline.strength === "HARD" || !allowLate) continue;
         score += 10_000; // myk frist: bare hvis ingenting annet passer
       }
       if (!best || score < best.score) best = { start, score };
@@ -178,7 +215,7 @@ function bestSlot(task: Task, length: number, intervals: Interval[], rules: Rule
   return best?.start ?? null;
 }
 
-/** Lavere er bedre. Skole tidlig på dagen, religion rett etter en bønn, familie rundt middag, alenetid om kvelden. */
+/** Lavere er bedre. Skole tidlig på dagen, religion rett etter en bønn, trening på ettermiddagen, familie rundt middag, alenetid om kvelden. */
 function preference(category: Category, start: Date, date: string, fixed: FixedBlock[]) {
   const m = localParts(start).minutes;
   switch (category) {
@@ -195,6 +232,8 @@ function preference(category: Category, start: Date, date: string, fixed: FixedB
       return Math.abs(m - 17.5 * 60);
     case "ALONE":
       return Math.abs(m - 21 * 60);
+    case "TRAINING":
+      return Math.abs(m - 16 * 60);
     default:
       return m;
   }
@@ -205,7 +244,9 @@ export function deadlineFor(date: string, category: Category, rules: Rule[]) {
   let best: { time: Date; strength: Strength } | null = null;
   for (const r of rules) {
     const p = r.params;
-    if (p.kind !== "LATEST_END" || p.location !== null || !p.days.includes(weekdayOf(date))) continue;
+    if (p.kind !== "LATEST_END" || !p.days.includes(weekdayOf(date))) continue;
+    // «Ute-blokker innen 19» gjelder kategorier som skjer ute (trening, jobb)
+    if (p.location !== null && !(p.location === "OUT" && OUTSIDE.has(category))) continue;
     if (p.category !== null && p.category !== category) continue;
     const time = localDateTime(date, p.time);
     if (!best || time < best.time || (time.getTime() === best.time.getTime() && r.strength === "HARD")) {
@@ -215,8 +256,12 @@ export function deadlineFor(date: string, category: Category, rules: Rule[]) {
   return best;
 }
 
-/** «Hjemme innen 19»: blokker som slutter etter fristen ligger hjemme. Ellers lar vi stedet stå åpent. */
-export function locationFor(date: string, end: Date, rules: Rule[]): ProposedBlock["location"] {
+/** Kategorier som vanligvis skjer utenfor hjemmet. */
+const OUTSIDE = new Set<Category>(["TRAINING", "WORK"]);
+
+/** Trening og jobb er ute. «Hjemme innen 19»: andre blokker etter fristen ligger hjemme. Ellers står stedet åpent. */
+export function locationFor(date: string, end: Date, rules: Rule[], category: Category): ProposedBlock["location"] {
+  if (OUTSIDE.has(category)) return "OUT";
   const homeBy = rules.some(
     (r) => r.params.kind === "LATEST_END" && r.params.location === "OUT" && r.params.days.includes(weekdayOf(date)) && end > localDateTime(date, r.params.time),
   );

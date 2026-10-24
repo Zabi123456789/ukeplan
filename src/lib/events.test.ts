@@ -55,7 +55,7 @@ describe("skjemaer", () => {
   });
 
   it("avviser ukjent kategori og tom tittel", () => {
-    expect(createEventSchema.safeParse({ ...valid, category: "WORK" }).success).toBe(false);
+    expect(createEventSchema.safeParse({ ...valid, category: "SLEEP" }).success).toBe(false);
     expect(createEventSchema.safeParse({ ...valid, title: "  " }).success).toBe(false);
   });
 

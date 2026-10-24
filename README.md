@@ -1,6 +1,6 @@
 # Ukeplan
 
-Ukeplan er en kalender som planlegger uka for deg. Du setter opp regler for hva du vil få til (studietid, religion, familie og venner, alenetid), og appen fyller uka med konkrete tidsblokker rundt faste bønnetider og det du har lagt inn selv.
+Ukeplan er en kalender som planlegger uka for deg. Du setter opp regler for hva du vil få til (studietid, religion, trening, familie og venner, alenetid), og appen fyller uka med konkrete tidsblokker rundt faste bønnetider og det du har lagt inn selv.
 
 Det er en ren frontend-app (React + Vite + TypeScript). All data lagres i nettleserens localStorage. Appen har ingen innlogging, ingen backend og ingen AI-tjeneste, så den er gratis å bruke og virker med en gang.
 
@@ -8,12 +8,14 @@ Det er en ren frontend-app (React + Vite + TypeScript). All data lagres i nettle
 
 ## Funksjoner
 
-- **Uke- og dagsvisning:** dra i en ledig del for å lage en blokk, eller bruk «+ Ny blokk». Dra for å flytte eller endre lengde, og klikk for å redigere eller slette. På mobil starter kalenderen i dagsvisning.
+- **Måned, uke og dag:** dra i en ledig del for å lage en blokk, eller bruk «+ Ny blokk». Dra for å flytte eller endre lengde, og klikk for å redigere eller slette. I månedsvisningen skjules bønnene for å gi plass, og du kan klikke på en dato for å åpne dagen. På mobil starter kalenderen i dagsvisning.
+- **Oversikt over uka:** timer per kategori mot målene dine, f.eks. «Skole 28 t / 28 t».
+- **Gjenta hver uke:** nye blokker kan legges inn flere uker fram, f.eks. en fast jobbvakt på mandager.
 - **Låste blokker** (🔒) blir aldri flyttet av planleggeren, og må låses opp før du flytter eller sletter dem selv.
 - **Bønnetider for Oslo** (shia/Ja'fari) beregnes automatisk for hver dato. Standard er tre faste blokker: Fajr, Dhuhr + Asr og Maghrib + Isha. Du kan endre en enkelt dag manuelt, og metode, vinkler og regel for lyse netter stilles inn under Bønnetider.
-- **Regler, harde og myke:** tid per dag, tid per uke, ferdig innen et klokkeslett (f.eks. hjemme innen 19), våkentid og sperret tid. Forslag basert på de fire kategoriene ligger klare.
+- **Regler, harde og myke:** tid per dag, tid per uke, ferdig innen et klokkeslett (f.eks. hjemme innen 19), våkentid og sperret tid. Tidsregler kan deles i et bestemt antall økter, f.eks. «4 t skole i to økter» eller «8 t trening fordelt på 4 økter». Forslag ligger klare.
 - **Planlegg uka:** fyller uka ut fra reglene og viser hva som ikke fikk plass.
-- **Opptrapping for å bygge disiplin:** tidsmålene starter lavere og øker hver uke. Standard er 50 % i uke 1 og 10 prosentpoeng mer hver uke, til 100 % i uke 6. Begynner du i helgen, starter opptrappingen den kommende uka.
+- **Opptrapping (valgfri):** tidsmålene kan starte lavere og øke hver uke, f.eks. 50 % i uke 1 og 10 prosentpoeng mer hver uke. Den er av som standard.
 - **Omplanlegging:** legger du inn eller flytter noe, flyttes bare de planlagte blokkene som kolliderer. Du ser hva som ble endret, og kan angre.
 - **Advarsel** når en blokk du legger inn overlapper en bønn eller en annen blokk.
 
@@ -35,15 +37,16 @@ npm run preview  # se på bygget lokalt
 2. **Behov:**
    - Tid per dag gjelder for hver dag, minus det som allerede ligger der.
    - Tid per uke fordeles jevnt på dagene som er igjen. Bønnene teller ikke med i religionstiden, den kommer i tillegg.
-3. **Økter:** maks 90 min studietid i strekk, 45 min religion, 90 min familie og venner og 60 min alenetid, med minst 15 min pause mellom øktene.
-4. **Rekkefølge:** harde regler først, deretter skole, religion, familie og venner, og alenetid.
+3. **Økter:** sier regelen hvor mange økter tiden skal deles i, blir øktene så lange. Ellers gjelder maks 90 min studietid, 45 min religion, 60 min trening, 90 min familie og venner og 60 min alenetid. Det er minst 15 min pause mellom øktene, og økter i samme kategori samme dag legges helst med flere timer mellom, så tiden spres utover dagen. Økter under 30 min lages ikke.
+4. **Rekkefølge:** harde regler først, så økter med fast lengde (f.eks. trening på 2 t), så kategoriene i rekkefølgen religion, skole, trening, familie og venner, alenetid.
 5. **Tidspunkt:** hver økt får det ledige tidspunktet som passer best:
    - studietid tidlig på dagen
    - religion rett etter en bønn
+   - trening på ettermiddagen
    - familie rundt middagstid
    - alenetid om kvelden
-6. **Frister:** «ferdig innen» med en kategori er en grense for den kategorien. «Hjemme innen 19» gjør at blokker etter kl. 19 legges hjemme.
-7. **Ukesmål** som ikke får plass en dag, flyttes til neste dag.
+6. **Frister:** «ferdig innen» med en kategori er en grense for den kategorien. «Hjemme innen 19» gjelder det som skjer ute (trening og jobb), og andre blokker etter kl. 19 legges hjemme.
+7. **Ukesmål** som ikke får plass en dag (eller bare får plass etter en myk frist), flyttes til neste dag.
 8. **Validering:** planen sjekkes i `src/lib/plan-validate.ts` før den lagres. Ingen blokker skal overlappe, ligge utenfor uka eller ligge i fortiden. Harde regler som ikke kunne oppfylles, vises som feil, og myke regler som ikke ble helt oppfylt, vises som advarsler.
 
 Når du planlegger på nytt, byttes bare de ulåste planlagte blokkene fra nå og ut uka. Alt annet blir stående.
@@ -100,11 +103,12 @@ src/
 │   ├── events.ts, week.ts   kategorier, tidssone og datoer
 │   └── *.test.ts            Vitest-tester
 └── components/              Calendar, ChangeLog, EventDialog, PlanPanel, PrayerDialog,
-                             PrayerSettingsForm, ProgressionCard, RulesManager, RuleEditor
+                             PrayerSettingsForm, ProgressionCard, RulesManager, RuleEditor,
+                             WeekSummary
 ```
 
 ## Hvordan AI ble brukt
 
 Appen er laget med Claude Code. Jeg beskrev ideen og kravene på norsk, og Claude laget først en arkitekturplan som vi justerte sammen. Blant annet endret vi bønnetidene til shia-praksis med tre bønner om dagen og gjorde våkentiden forskjellig for hverdager og helg.
 
-Første versjon brukte Claude API til planleggingen, med Next.js og en SQLite-database. Det krevde API-nøkkel og betaling. Derfor bygde vi appen om til en ren nettleser-app med en egen planleggingsalgoritme, slik som Eksamensklar. Til slutt kom opptrapping, fordi målet med kalenderen er å bygge disiplin gradvis, og omplanlegging når noe nytt legges inn. Hvert steg ble testet med Vitest og sjekket i nettleseren på PC- og mobilbredde før vi gikk videre.
+Første versjon brukte Claude API til planleggingen, med Next.js og en SQLite-database. Det krevde API-nøkkel og betaling. Derfor bygde vi appen om til en ren nettleser-app med en egen planleggingsalgoritme, slik som Eksamensklar. Etterpå kom omplanlegging når noe nytt legges inn, trening og jobb som egne kategorier, økter som spres utover dagen, og månedsvisning. Målet med kalenderen er å bygge disiplin, og da viste det seg at faste timer delt i overkommelige økter fungerer bedre enn å trappe opp antall timer. Opptrappingen ligger derfor igjen som et valg. Hvert steg ble testet med Vitest og sjekket i nettleseren på PC- og mobilbredde før vi gikk videre.

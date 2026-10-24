@@ -70,7 +70,7 @@ export function adjustAround(data: AppData, anchorId: string, now = new Date()):
       ...v,
       start: placed.start.toISOString(),
       end: placed.end.toISOString(),
-      location: locationFor(localParts(placed.start).date, placed.end, rules),
+      location: locationFor(localParts(placed.start).date, placed.end, rules, v.category),
     };
     events = [...events, moved];
     changes.push({ kind: "moved", id: v.id, title: v.title, from, to: placed });

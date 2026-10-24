@@ -120,7 +120,7 @@ describe("harde og myke regler", () => {
 });
 
 describe("tidsregler", () => {
-  const school5 = rule({ kind: "DAILY_TIME", category: "SCHOOL", minutes: 300, days: ["MON"] });
+  const school5 = rule({ kind: "DAILY_TIME", category: "SCHOOL", minutes: 300, days: ["MON"], sessions: null });
 
   it("advarer når en dag får for lite tid", () => {
     const r = check([block(MONDAY, "09:00", "13:00")], { rules: [school5] });
@@ -139,14 +139,14 @@ describe("tidsregler", () => {
   });
 
   it("religion i uka teller ikke bønnene", () => {
-    const religion = rule({ kind: "WEEKLY_TIME", category: "RELIGION", minMinutes: 180, maxMinutes: 240 });
+    const religion = rule({ kind: "WEEKLY_TIME", category: "RELIGION", minMinutes: 180, maxMinutes: 240, sessions: null });
     const fixed = Array.from({ length: 7 }, (_, i) => prayer(`2026-10-${26 + i}`, "12:00", "12:20"));
     const r = check([block(MONDAY, "18:00", "19:00", "RELIGION")], { rules: [religion], fixed });
     expect(r.warnings[0].message).toMatch(/1 t i uka, ønsket minst 3 t/);
   });
 
   it("advarer når uka får mer enn maks", () => {
-    const religion = rule({ kind: "WEEKLY_TIME", category: "RELIGION", minMinutes: 60, maxMinutes: 120 });
+    const religion = rule({ kind: "WEEKLY_TIME", category: "RELIGION", minMinutes: 60, maxMinutes: 120, sessions: null });
     const r = check([block(MONDAY, "08:00", "12:00", "RELIGION")], { rules: [religion] });
     expect(r.warnings[0].message).toMatch(/ønsket høyst 2 t/);
   });

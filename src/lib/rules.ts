@@ -21,17 +21,20 @@ export type Strength = (typeof STRENGTHS)[number];
 const hhmm = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, "Bruk formatet TT:MM");
 const days = z.array(z.enum(WEEKDAYS)).min(1, "Velg minst én dag");
 const minutes = z.number().int().min(0).max(24 * 60 * 7);
+/** Ønsket antall økter (per dag eller per uke). null = planleggeren velger. */
+const sessions = z.number().int().min(1).max(14).nullable().default(null);
 
 /** Regeltypene. Bønnetider er ikke regler: de er faste blokker i kalenderen. */
 export const ruleParamsSchema = z.discriminatedUnion("kind", [
   // «Studere 5 timer hver dag». Teller ikke bønneblokker.
-  z.object({ kind: z.literal("DAILY_TIME"), category: z.enum(CATEGORIES), minutes, days }),
+  z.object({ kind: z.literal("DAILY_TIME"), category: z.enum(CATEGORIES), minutes, days, sessions }),
   // «3–4 timer religion i uka» (i tillegg til bønnene)
   z.object({
     kind: z.literal("WEEKLY_TIME"),
     category: z.enum(CATEGORIES),
     minMinutes: minutes,
     maxMinutes: minutes.nullable(),
+    sessions,
   }),
   // «Hjemme rundt kl. 19»: blokker (ute / i en kategori) skal være ferdige innen tidspunktet
   z.object({
@@ -89,6 +92,7 @@ const num = (m: number) => {
   return Number.isInteger(h) ? `${h}` : h.toFixed(1).replace(".", ",");
 };
 const hours = (m: number) => `${num(m)} t`;
+const inSessions = (n: number | null) => (n ? `, fordelt på ${n} ${n === 1 ? "økt" : "økter"}` : "");
 
 export function describeDays(d: Weekday[]) {
   const set = new Set(d);
@@ -102,9 +106,9 @@ export function describeDays(d: Weekday[]) {
 export function describeRule(p: RuleParams): string {
   switch (p.kind) {
     case "DAILY_TIME":
-      return `${CATEGORY_INFO[p.category].label}: ${hours(p.minutes)} per dag (${describeDays(p.days)})`;
+      return `${CATEGORY_INFO[p.category].label}: ${hours(p.minutes)} per dag${inSessions(p.sessions)} (${describeDays(p.days)})`;
     case "WEEKLY_TIME":
-      return `${CATEGORY_INFO[p.category].label}: ${p.maxMinutes ? `${num(p.minMinutes)}–${hours(p.maxMinutes)}` : `minst ${hours(p.minMinutes)}`} i uka${p.category === "RELIGION" ? " i tillegg til bønnene" : ""}`;
+      return `${CATEGORY_INFO[p.category].label}: ${p.maxMinutes ? `${num(p.minMinutes)}–${hours(p.maxMinutes)}` : `minst ${hours(p.minMinutes)}`} i uka${inSessions(p.sessions)}${p.category === "RELIGION" ? " i tillegg til bønnene" : ""}`;
     case "LATEST_END": {
       const what = [p.location && LOCATION_LABEL[p.location].toLowerCase(), p.category && CATEGORY_INFO[p.category].label.toLowerCase()]
         .filter(Boolean)

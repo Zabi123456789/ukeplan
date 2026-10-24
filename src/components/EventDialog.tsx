@@ -18,6 +18,8 @@ export type EventDraft = {
   locked: boolean;
   location: Location | null;
   notes: string | null;
+  /** Bare for nye blokker: antall uker blokken legges inn (1 = bare denne gangen). */
+  repeatWeeks?: number;
 };
 
 type Props = {
@@ -155,6 +157,35 @@ export function EventDialog({ draft, onSave, onDelete, onClose }: Props) {
           />
           Lås blokken (planleggeren flytter den aldri)
         </label>
+
+        {isNew && (
+          <div className="flex flex-wrap items-center gap-2 text-sm">
+            <label className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                className="size-4 accent-accent"
+                checked={(form.repeatWeeks ?? 1) > 1}
+                onChange={(e) => set("repeatWeeks", e.target.checked ? 8 : 1)}
+              />
+              Gjenta hver uke
+            </label>
+            {(form.repeatWeeks ?? 1) > 1 && (
+              <label className="flex items-center gap-1.5 text-muted">
+                i
+                <input
+                  type="number"
+                  min={2}
+                  max={52}
+                  aria-label="Antall uker"
+                  className="w-16 rounded-md border border-line bg-surface px-2 py-1 text-foreground"
+                  value={form.repeatWeeks}
+                  onChange={(e) => set("repeatWeeks", Math.min(52, Math.max(2, Number(e.target.value) || 2)))}
+                />
+                uker (f.eks. faste jobbvakter)
+              </label>
+            )}
+          </div>
+        )}
 
         {error && <p className="rounded-md bg-red-500/10 px-3 py-2 text-sm text-red-700 dark:text-red-300">{error}</p>}
 

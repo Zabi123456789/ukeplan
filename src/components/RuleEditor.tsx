@@ -8,8 +8,8 @@ const ALL_DAYS = [...WEEKDAYS];
 
 /** Standardverdier når du bytter regeltype. */
 const DEFAULTS: Record<RuleKind, RuleParams> = {
-  DAILY_TIME: { kind: "DAILY_TIME", category: "SCHOOL", minutes: 120, days: ALL_DAYS },
-  WEEKLY_TIME: { kind: "WEEKLY_TIME", category: "RELIGION", minMinutes: 180, maxMinutes: 240 },
+  DAILY_TIME: { kind: "DAILY_TIME", category: "SCHOOL", minutes: 120, days: ALL_DAYS, sessions: null },
+  WEEKLY_TIME: { kind: "WEEKLY_TIME", category: "RELIGION", minMinutes: 180, maxMinutes: 240, sessions: null },
   LATEST_END: { kind: "LATEST_END", time: "19:00", days: ["MON", "TUE", "WED", "THU", "FRI"], location: "OUT", category: null },
   AWAKE_HOURS: { kind: "AWAKE_HOURS", days: ALL_DAYS, wake: "07:00", sleep: "23:00" },
   BLOCKED_TIME: { kind: "BLOCKED_TIME", days: ["FRI"], start: "18:00", end: "22:00", title: "Fri" },
@@ -47,6 +47,7 @@ export function RuleEditor({ value, onChange }: { value: RuleInput; onChange: (v
         <Row>
           <CategorySelect value={p.category} onChange={(category) => setParams({ category })} />
           <HoursInput label="timer per dag" minutes={p.minutes} onChange={(minutes) => setParams({ minutes })} />
+          <SessionsInput value={p.sessions} onChange={(sessions) => setParams({ sessions })} />
           <DayPicker value={p.days} onChange={(days) => setParams({ days })} />
         </Row>
       )}
@@ -61,6 +62,7 @@ export function RuleEditor({ value, onChange }: { value: RuleInput; onChange: (v
             allowEmpty
             onChange={(m) => setParams({ maxMinutes: Number.isNaN(m) ? null : m })}
           />
+          <SessionsInput value={p.sessions} onChange={(sessions) => setParams({ sessions })} />
         </Row>
       )}
 
@@ -185,6 +187,25 @@ function HoursInput(props: { label: string; minutes: number; onChange: (m: numbe
         placeholder={props.allowEmpty ? "maks" : undefined}
       />
       <span className="text-muted">{props.label}</span>
+    </label>
+  );
+}
+
+/** Antall økter tiden deles i. Tomt felt = planleggeren velger. */
+function SessionsInput({ value, onChange }: { value: number | null; onChange: (v: number | null) => void }) {
+  return (
+    <label className="flex items-center gap-1.5 text-sm">
+      <span className="text-muted">fordelt på</span>
+      <input
+        type="number"
+        min={1}
+        max={14}
+        className={`${field} w-16`}
+        placeholder="auto"
+        value={value ?? ""}
+        onChange={(e) => onChange(e.target.value === "" ? null : Math.max(1, Math.round(Number(e.target.value))))}
+      />
+      <span className="text-muted">økter</span>
     </label>
   );
 }

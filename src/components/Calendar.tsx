@@ -9,15 +9,17 @@ import type {
 import nbLocale from "@fullcalendar/core/locales/nb";
 import interactionPlugin from "@fullcalendar/interaction";
 import FullCalendar from "@fullcalendar/react";
+import dayGridPlugin from "@fullcalendar/daygrid";
 import timeGridPlugin from "@fullcalendar/timegrid";
 import { useEffect, useRef, useState } from "react";
 import { ChangeLog, type ChangeSet } from "@/components/ChangeLog";
 import { EventDialog, type EventDraft } from "@/components/EventDialog";
 import { PlanPanel } from "@/components/PlanPanel";
 import { PrayerDialog } from "@/components/PrayerDialog";
+import { WeekSummary } from "@/components/WeekSummary";
 import { calendarBetween, createEvent, deleteEvent, updateEvent, type AppData } from "@/lib/calendar";
-import { CATEGORIES, CATEGORY_INFO, type CalendarEvent } from "@/lib/events";
-import { adjustAround } from "@/lib/replan";
+import { CATEGORY_INFO, type CalendarEvent } from "@/lib/events";
+import { adjustAround, type Change } from "@/lib/replan";
 import { getData, update, useData } from "@/lib/store";
 import { localParts, mondayOf } from "@/lib/week";
 
@@ -33,7 +35,11 @@ const errorText = (e: unknown) => (e instanceof Error ? e.message : String(e));
 
 /** Stabil hendelseskilde. Et promise gjør at hendelsene leveres etter opptegningen (React advarer ellers). */
 async function loadEvents(info: EventSourceFuncArg) {
-  return calendarBetween(getData(), info.start, info.end).map((e) => ({
+  // I månedsvisning (over en uke) tas bønnene ut, så det blir plass til det du har planlagt
+  const month = info.end.getTime() - info.start.getTime() > 8 * 86_400_000;
+  return calendarBetween(getData(), info.start, info.end)
+    .filter((e) => !month || e.source !== "PRAYER")
+    .map((e) => ({
     id: e.id,
     title: e.title,
     start: e.start,
@@ -44,6 +50,14 @@ async function loadEvents(info: EventSourceFuncArg) {
     classNames: [e.source === "PRAYER" ? "is-prayer" : e.locked ? "is-locked" : "", e.source === "AI" ? "is-ai" : ""].filter(Boolean),
     extendedProps: e,
   }));
+}
+
+/** Uka planpanelet og oppsummeringen gjelder. I månedsvisning: denne uka hvis den er i måneden, ellers første uke. */
+function weekShown(arg: DatesSetArg) {
+  if (arg.view.type !== "dayGridMonth") return mondayOf(localParts(arg.start).date);
+  const today = new Date();
+  const inMonth = today >= arg.view.currentStart && today < arg.view.currentEnd;
+  return mondayOf(localParts(inMonth ? today : arg.view.currentStart).date);
 }
 
 export function Calendar() {
@@ -96,6 +110,24 @@ export function Calendar() {
     setChangeSet(adjusted.changes.length ? { title: `${verb} «${result.event.title}»`, changes: adjusted.changes, undo: before } : null);
   }
 
+  /** Legger inn samme blokk hver uke i flere uker, og justerer rundt hver av dem. */
+  function commitRepeated(before: AppData, input: Record<string, unknown>, start: Date, end: Date, weeks: number) {
+    const shift = (d: Date, i: number) => new Date(d.getFullYear(), d.getMonth(), d.getDate() + 7 * i, d.getHours(), d.getMinutes());
+    let data = before;
+    const changes: Change[] = [];
+    let title = "";
+    for (let i = 0; i < weeks; i++) {
+      const created = createEvent(data, { ...input, start: shift(start, i).toISOString(), end: shift(end, i).toISOString() });
+      const adjusted = adjustAround(created.data, created.event.id);
+      data = adjusted.data;
+      changes.push(...adjusted.changes);
+      title = created.event.title;
+    }
+    update(() => data);
+    setNotice(null);
+    setChangeSet(changes.length ? { title: `La til «${title}» hver uke i ${weeks} uker`, changes, undo: before } : null);
+  }
+
   function undo() {
     if (!changeSet) return;
     const previous = changeSet.undo;
@@ -126,7 +158,8 @@ export function Calendar() {
       notes: d.notes,
     };
     const before = getData();
-    commit(before, d.id ? updateEvent(before, d.id, input) : createEvent(before, input), d.id ? "Endret" : "La til");
+    if (!d.id && (d.repeatWeeks ?? 1) > 1) commitRepeated(before, input, d.start, d.end, d.repeatWeeks!);
+    else commit(before, d.id ? updateEvent(before, d.id, input) : createEvent(before, input), d.id ? "Endret" : "La til");
     setDraft(null);
   }
 
@@ -141,18 +174,16 @@ export function Calendar() {
     <div className="space-y-3">
       {monday && <PlanPanel monday={monday} />}
 
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted">
-        <button onClick={newBlock} className="rounded-md border border-line bg-surface px-3 py-1.5 text-sm text-foreground hover:bg-hover">
+      <div className="flex flex-wrap items-start gap-3">
+        <button onClick={newBlock} className="rounded-md bg-accent px-3 py-1.5 text-sm font-medium text-white hover:opacity-90">
           + Ny blokk
         </button>
-        {CATEGORIES.map((c) => (
-          <span key={c} className="flex items-center gap-1.5">
-            <span className="size-2.5 rounded-sm" style={{ background: CATEGORY_INFO[c].color }} />
-            {CATEGORY_INFO[c].label}
-          </span>
-        ))}
-        <span className="ml-auto">Dra i en ledig del av kalenderen for å lage en blokk. Klikk på en blokk eller bønn for å redigere.</span>
+        {monday && <WeekSummary monday={monday} />}
       </div>
+      <p className="text-xs text-muted">
+        Timer denne uka mot målene dine. Dra i en ledig del av kalenderen for å lage en blokk, og klikk på en blokk eller bønn for å
+        redigere.
+      </p>
 
       {changeSet && <ChangeLog set={changeSet} onUndo={undo} onClose={() => setChangeSet(null)} />}
 
@@ -175,11 +206,15 @@ export function Calendar() {
       <div className="calendar-shell rounded-xl border border-line bg-surface p-2 sm:p-3">
         <FullCalendar
           ref={calendarRef}
-          plugins={[timeGridPlugin, interactionPlugin]}
+          plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin]}
           locale={nbLocale}
           initialView={window.innerWidth < 640 ? "timeGridDay" : "timeGridWeek"}
-          headerToolbar={{ left: "prev,next today", center: "title", right: "timeGridWeek,timeGridDay" }}
-          buttonText={{ today: "I dag", week: "Uke", day: "Dag" }}
+          headerToolbar={{ left: "prev,next today", center: "title", right: "dayGridMonth,timeGridWeek,timeGridDay" }}
+          buttonText={{ today: "I dag", month: "Måned", week: "Uke", day: "Dag" }}
+          // Måned: maks fire blokker per dag («+3 til»), farget som i uka, og klikk på datoen åpner dagen
+          views={{ dayGridMonth: { dayMaxEvents: 4, displayEventEnd: true } }}
+          eventDisplay="block"
+          navLinks
           firstDay={1}
           allDaySlot={false}
           nowIndicator
@@ -192,7 +227,7 @@ export function Calendar() {
           editable
           eventOverlap
           events={loadEvents}
-          datesSet={(arg: DatesSetArg) => setMonday(mondayOf(localParts(arg.start).date))}
+          datesSet={(arg: DatesSetArg) => setMonday(weekShown(arg))}
           select={onSelect}
           eventClick={onEventClick}
           eventChange={onEventChange}

@@ -16,12 +16,12 @@ export const progressionSchema = z.object({
 });
 export type Progression = z.infer<typeof progressionSchema>;
 
-/** Starter du i helgen, blir første uke den kommende uka. */
+/** Av som standard. Slår du den på i helgen, blir første uke den kommende uka. */
 export function defaultProgression(today = new Date()): Progression {
   const { date, weekday } = localParts(today);
   const monday = mondayOf(date);
   const startMonday = weekday === "SAT" || weekday === "SUN" ? addDays(monday, 7) : monday;
-  return { enabled: true, startMonday, startPercent: 50, stepPercent: 10 };
+  return { enabled: false, startMonday, startPercent: 50, stepPercent: 10 };
 }
 
 /** Uke nummer i opptrappingen (1 = første uke). Uker før start regnes som uke 1. */

@@ -104,3 +104,9 @@ body {
 #root {
   min-height: 100vh;
 }
+
+/* Månedsvisning */
+.calendar-shell .fc .fc-daygrid-day-number,
+.calendar-shell .fc .fc-col-header-cell-cushion {
+  color: var(--foreground);
+}
