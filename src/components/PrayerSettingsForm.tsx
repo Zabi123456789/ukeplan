@@ -1,6 +1,5 @@
-"use client";
-
 import { useMemo, useState } from "react";
+import { setPrayerSettings } from "@/lib/calendar";
 import {
   computePrayerDay,
   HIGH_LATITUDE_INFO,
@@ -12,16 +11,18 @@ import {
   prayerSettingsSchema,
   shiftDate,
   type PrayerSettings,
+  todayIn,
 } from "@/lib/prayer";
+import { update, useData } from "@/lib/store";
 
 const field =
   "w-full rounded-md border border-line bg-surface px-3 py-2 text-sm outline-none focus:border-accent focus:ring-2 focus:ring-accent/20";
 
-export function PrayerSettingsForm({ initial, today }: { initial: PrayerSettings; today: string }) {
-  const [saved, setSaved] = useState(initial);
-  const [s, setS] = useState(initial);
+export function PrayerSettingsForm() {
+  const saved = useData().prayerSettings;
+  const [today] = useState(() => todayIn(saved.timeZone));
+  const [s, setS] = useState(saved);
   const [status, setStatus] = useState<{ kind: "ok" | "error"; text: string } | null>(null);
-  const [saving, setSaving] = useState(false);
 
   const set = <K extends keyof PrayerSettings>(key: K, value: PrayerSettings[K]) => {
     setS((prev) => ({ ...prev, [key]: value }));
@@ -33,17 +34,11 @@ export function PrayerSettingsForm({ initial, today }: { initial: PrayerSettings
   const valid = prayerSettingsSchema.safeParse(s);
   const changed = JSON.stringify(s) !== JSON.stringify(saved);
 
-  async function save() {
+  function save() {
     if (!valid.success) return;
-    setSaving(true);
-    const res = await fetch("/api/settings/prayer", {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(valid.data),
-    });
-    setSaving(false);
-    if (res.ok) setSaved(valid.data);
-    setStatus(res.ok ? { kind: "ok", text: "Lagret. Kalenderen bruker de nye tidene." } : { kind: "error", text: "Kunne ikke lagre" });
+    const settings = valid.data;
+    update((data) => setPrayerSettings(data, settings));
+    setStatus({ kind: "ok", text: "Lagret. Kalenderen bruker de nye tidene." });
   }
 
   return (
@@ -152,7 +147,7 @@ export function PrayerSettingsForm({ initial, today }: { initial: PrayerSettings
         <div className="flex items-center gap-3">
           <button
             onClick={save}
-            disabled={!valid.success || !changed || saving}
+            disabled={!valid.success || !changed}
             className="rounded-md bg-accent px-4 py-2 text-sm font-medium text-white hover:opacity-90 disabled:opacity-40"
           >
             Lagre

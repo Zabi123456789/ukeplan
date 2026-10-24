@@ -1,41 +1,26 @@
-"use client";
-
-import Link from "next/link";
-import { useEffect, useState } from "react";
-import type { PrayerDayResponse } from "@/app/api/prayers/[date]/route";
+import { useState } from "react";
+import { prayerDay, setPrayerOverride } from "@/lib/calendar";
 import { PRAYER_LABEL, PRAYERS, type Prayer } from "@/lib/prayer";
+import { update, useData } from "@/lib/store";
 
 type Props = {
   date: string; // YYYY-MM-DD
-  onChanged: () => void;
   onClose: () => void;
 };
 
-const TIME_ZONE = "Europe/Oslo";
-const hhmm = (iso: string) =>
-  new Date(iso).toLocaleTimeString("nb-NO", { timeZone: TIME_ZONE, hour: "2-digit", minute: "2-digit" });
+const hhmm = (d: Date) => d.toLocaleTimeString("nb-NO", { timeZone: "Europe/Oslo", hour: "2-digit", minute: "2-digit" });
 
-export function PrayerDialog({ date, onChanged, onClose }: Props) {
-  const [day, setDay] = useState<PrayerDayResponse | null>(null);
+export function PrayerDialog({ date, onClose }: Props) {
+  const day = prayerDay(useData(), date);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    fetch(`/api/prayers/${date}`)
-      .then((r) => r.json())
-      .then(setDay, () => setError("Kunne ikke hente bønnetidene"));
-  }, [date]);
-
-  async function setTime(prayer: Prayer, time: string | null) {
+  function setTime(prayer: Prayer, time: string | null) {
     setError(null);
-    const res = await fetch(`/api/prayers/${date}`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ prayer, time }),
-    });
-    const body = await res.json();
-    if (!res.ok) return setError(body.error ?? "Kunne ikke lagre");
-    setDay(body);
-    onChanged();
+    try {
+      update((data) => setPrayerOverride(data, date, prayer, time));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    }
   }
 
   const heading = new Date(`${date}T12:00:00`).toLocaleDateString("nb-NO", {
@@ -55,33 +40,29 @@ export function PrayerDialog({ date, onChanged, onClose }: Props) {
           <p className="text-sm capitalize text-muted">{heading}</p>
         </div>
 
-        {!day ? (
-          <p className="text-sm text-muted">{error ?? "Henter …"}</p>
-        ) : (
-          <div className="divide-y divide-line rounded-md border border-line text-sm">
-            <InfoRow label="Soloppgang" value={hhmm(day.sunrise)} />
-            {PRAYERS.map((p) => (
-              <PrayerRow
-                key={`${p}-${day.times[p]}`}
-                prayer={p}
-                time={hhmm(day.times[p])}
-                calculated={hhmm(day.calculated[p])}
-                manual={day.overridden.includes(p)}
-                onSet={(time) => setTime(p, time)}
-              />
-            ))}
-            <InfoRow label="Solnedgang" value={hhmm(day.sunset)} />
-            <InfoRow label="Midnatt" value={hhmm(day.midnight)} hint="siste frist for Maghrib og Isha" />
-          </div>
-        )}
+        <div className="divide-y divide-line rounded-md border border-line text-sm">
+          <InfoRow label="Soloppgang" value={hhmm(day.sunrise)} />
+          {PRAYERS.map((p) => (
+            <PrayerRow
+              key={`${p}-${day.times[p].getTime()}`}
+              prayer={p}
+              time={hhmm(day.times[p])}
+              calculated={hhmm(day.calculated[p])}
+              manual={day.overridden.includes(p)}
+              onSet={(time) => setTime(p, time)}
+            />
+          ))}
+          <InfoRow label="Solnedgang" value={hhmm(day.sunset)} />
+          <InfoRow label="Midnatt" value={hhmm(day.midnight)} hint="siste frist for Maghrib og Isha" />
+        </div>
 
-        {error && day && <p className="text-sm text-red-700 dark:text-red-300">{error}</p>}
+        {error && <p className="text-sm text-red-700 dark:text-red-300">{error}</p>}
 
         <p className="text-xs text-muted">
-          Endrer du en tid her, gjelder det bare denne dagen. Metode, vinkler og varighet endrer du i{" "}
-          <Link href="/innstillinger" className="text-accent hover:underline">
-            innstillingene
-          </Link>
+          Endrer du en tid her, gjelder det bare denne dagen. Metode, vinkler og varighet endrer du under{" "}
+          <a href="#bonnetider" onClick={onClose} className="text-accent hover:underline">
+            Bønnetider
+          </a>
           .
         </p>
 

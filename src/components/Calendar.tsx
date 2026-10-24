@@ -1,6 +1,5 @@
-"use client";
-
 import type {
+  DatesSetArg,
   DateSelectArg,
   EventChangeArg,
   EventClickArg,
@@ -11,22 +10,16 @@ import nbLocale from "@fullcalendar/core/locales/nb";
 import interactionPlugin from "@fullcalendar/interaction";
 import FullCalendar from "@fullcalendar/react";
 import timeGridPlugin from "@fullcalendar/timegrid";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { EventDialog, type EventDraft } from "@/components/EventDialog";
+import { PlanPanel } from "@/components/PlanPanel";
 import { PrayerDialog } from "@/components/PrayerDialog";
+import { calendarBetween, createEvent, deleteEvent, updateEvent } from "@/lib/calendar";
 import { CATEGORIES, CATEGORY_INFO, type CalendarEvent } from "@/lib/events";
+import { getData, update, useData } from "@/lib/store";
+import { localParts, mondayOf } from "@/lib/week";
 
 type Notice = { kind: "error" | "warning"; text: string };
-
-async function api<T>(url: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(url, { ...init, headers: { "Content-Type": "application/json" } });
-  if (res.status === 204) return undefined as T;
-  const body = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(body.error ?? `Feil ${res.status}`);
-  return body as T;
-}
-
-type SaveResult = { event: CalendarEvent; conflicts: CalendarEvent[] };
 
 function conflictNotice(conflicts: CalendarEvent[]): Notice | null {
   if (conflicts.length === 0) return null;
@@ -34,18 +27,23 @@ function conflictNotice(conflicts: CalendarEvent[]): Notice | null {
   return { kind: "warning", text: `Overlapper med ${names}.` };
 }
 
+const errorText = (e: unknown) => (e instanceof Error ? e.message : String(e));
+
 export function Calendar() {
   const calendarRef = useRef<FullCalendar>(null);
+  const data = useData();
   const [draft, setDraft] = useState<EventDraft | null>(null);
   const [notice, setNotice] = useState<Notice | null>(null);
   const [prayerDate, setPrayerDate] = useState<string | null>(null);
+  const [monday, setMonday] = useState<string | null>(null);
 
-  const refetch = () => calendarRef.current?.getApi().refetchEvents();
+  // Tegn kalenderen på nytt når dataene endres (også fra en annen fane)
+  useEffect(() => {
+    calendarRef.current?.getApi().refetchEvents();
+  }, [data]);
 
-  async function loadEvents(info: EventSourceFuncArg) {
-    const qs = new URLSearchParams({ start: info.start.toISOString(), end: info.end.toISOString() });
-    const events = await api<CalendarEvent[]>(`/api/events?${qs}`);
-    return events.map((e) => ({
+  function loadEvents(info: EventSourceFuncArg) {
+    return calendarBetween(getData(), info.start, info.end).map((e) => ({
       id: e.id,
       title: e.title,
       start: e.start,
@@ -53,7 +51,7 @@ export function Calendar() {
       backgroundColor: CATEGORY_INFO[e.category].color,
       borderColor: CATEGORY_INFO[e.category].color,
       editable: !e.locked,
-      classNames: e.source === "PRAYER" ? ["is-prayer"] : e.locked ? ["is-locked"] : [],
+      classNames: [e.source === "PRAYER" ? "is-prayer" : e.locked ? "is-locked" : "", e.source === "AI" ? "is-ai" : ""].filter(Boolean),
       extendedProps: e,
     }));
   }
@@ -78,23 +76,20 @@ export function Calendar() {
     setDraft({ ...e, start: new Date(e.start), end: new Date(e.end) });
   }
 
-  async function onEventChange(info: EventChangeArg) {
+  function onEventChange(info: EventChangeArg) {
     try {
-      const result = await api<SaveResult>(`/api/events/${info.event.id}`, {
-        method: "PATCH",
-        body: JSON.stringify({ start: info.event.start?.toISOString(), end: info.event.end?.toISOString() }),
-      });
-      info.event.setExtendedProp("start", result.event.start);
-      info.event.setExtendedProp("end", result.event.end);
+      const changes = { start: info.event.start?.toISOString(), end: info.event.end?.toISOString() };
+      const result = updateEvent(getData(), info.event.id, changes);
+      update(() => result.data);
       setNotice(conflictNotice(result.conflicts));
     } catch (err) {
       info.revert();
-      setNotice({ kind: "error", text: err instanceof Error ? err.message : String(err) });
+      setNotice({ kind: "error", text: errorText(err) });
     }
   }
 
   async function save(d: EventDraft) {
-    const body = JSON.stringify({
+    const input = {
       title: d.title,
       category: d.category,
       start: d.start.toISOString(),
@@ -102,24 +97,23 @@ export function Calendar() {
       locked: d.locked,
       location: d.location,
       notes: d.notes,
-    });
-    const result = d.id
-      ? await api<SaveResult>(`/api/events/${d.id}`, { method: "PATCH", body })
-      : await api<SaveResult>("/api/events", { method: "POST", body });
+    };
+    const result = d.id ? updateEvent(getData(), d.id, input) : createEvent(getData(), input);
+    update(() => result.data);
     setDraft(null);
     setNotice(conflictNotice(result.conflicts));
-    refetch();
   }
 
   async function remove(id: string) {
-    await api(`/api/events/${id}`, { method: "DELETE" });
+    update((current) => deleteEvent(current, id));
     setDraft(null);
     setNotice(null);
-    refetch();
   }
 
   return (
     <div className="space-y-3">
+      {monday && <PlanPanel monday={monday} />}
+
       <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted">
         {CATEGORIES.map((c) => (
           <span key={c} className="flex items-center gap-1.5">
@@ -151,7 +145,7 @@ export function Calendar() {
           ref={calendarRef}
           plugins={[timeGridPlugin, interactionPlugin]}
           locale={nbLocale}
-          initialView="timeGridWeek"
+          initialView={window.innerWidth < 640 ? "timeGridDay" : "timeGridWeek"}
           headerToolbar={{ left: "prev,next today", center: "title", right: "timeGridWeek,timeGridDay" }}
           buttonText={{ today: "I dag", week: "Uke", day: "Dag" }}
           firstDay={1}
@@ -165,7 +159,8 @@ export function Calendar() {
           selectMirror
           editable
           eventOverlap
-          events={loadEvents}
+          events={(info, success) => success(loadEvents(info))}
+          datesSet={(arg: DatesSetArg) => setMonday(mondayOf(localParts(arg.start).date))}
           select={onSelect}
           eventClick={onEventClick}
           eventChange={onEventChange}
@@ -183,7 +178,7 @@ export function Calendar() {
         />
       )}
 
-      {prayerDate && <PrayerDialog date={prayerDate} onChanged={refetch} onClose={() => setPrayerDate(null)} />}
+      {prayerDate && <PrayerDialog date={prayerDate} onClose={() => setPrayerDate(null)} />}
     </div>
   );
 }
@@ -206,6 +201,7 @@ function renderEvent(arg: EventContentArg) {
       <span className="truncate text-xs font-medium">
         {e.locked && e.source !== "PRAYER" && <span aria-label="Låst">🔒 </span>}
         {arg.event.title}
+        {e.source === "AI" && <span className="ml-1 text-[10px] font-normal opacity-70">auto</span>}
       </span>
     </div>
   );

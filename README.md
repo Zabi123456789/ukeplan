@@ -1,109 +1,93 @@
 # Ukeplan
 
-En kalender der en AI-modell planlegger uka di rundt faste bønnetider, skole, familie og venner, og alenetid. Når du legger inn noe nytt, justeres bare det som må flyttes.
+Ukeplan er en kalender som planlegger uka for deg. Du setter opp regler for hva du vil få til (studietid, religion, familie og venner, alenetid), og appen fyller uka med konkrete tidsblokker rundt faste bønnetider og det du har lagt inn selv.
 
-Appen bygges i fire steg:
+Det er en ren frontend-app (React + Vite + TypeScript). All data lagres i nettleserens localStorage. Appen har ingen innlogging, ingen backend og ingen AI-tjeneste, så den er gratis å bruke og virker med en gang.
 
-| Steg | Innhold | Status |
-| --- | --- | --- |
-| 1 | Datamodell og kalender med manuelle blokker | ✅ Ferdig |
-| 2 | Bønnetider (shia/Ja'fari, tre blokker per dag, innstillbar beregning) | ✅ Ferdig |
-| 3 | AI-planlegging av uka med Claude, med validering før lagring | Neste |
-| 4 | Omplanlegging med minimale endringer og visning av hva som ble endret | – |
+**Demo:** https://zabi123456789.github.io/ukeplan/ · **Kode:** https://github.com/Zabi123456789/ukeplan
+
+## Funksjoner
+
+- **Uke- og dagsvisning:** dra for å lage en blokk, dra for å flytte eller endre lengde, og klikk for å redigere eller slette. På mobil starter kalenderen i dagsvisning.
+- **Låste blokker** (🔒) blir aldri flyttet av planleggeren, og må låses opp før du flytter eller sletter dem selv.
+- **Bønnetider for Oslo** (shia/Ja'fari) beregnes automatisk for hver dato. Standard er tre faste blokker: Fajr, Dhuhr + Asr og Maghrib + Isha. Du kan endre en enkelt dag manuelt, og metode, vinkler og regel for lyse netter stilles inn under Bønnetider.
+- **Regler, harde og myke:** tid per dag, tid per uke, ferdig innen et klokkeslett (f.eks. hjemme innen 19), våkentid og sperret tid. Forslag basert på de fire kategoriene ligger klare.
+- **Planlegg uka:** fyller uka ut fra reglene og viser hva som ikke fikk plass.
+- **Advarsel** når en blokk du legger inn overlapper en bønn eller en annen blokk.
 
 ## Kom i gang
 
-Krever Node 22 eller nyere.
-
 ```bash
-npm install            # kjører også `prisma generate`
-cp .env.example .env   # fyll inn ANTHROPIC_API_KEY fra steg 3
-npx prisma migrate dev # oppretter SQLite-databasen i prisma/dev.db
-npm run dev            # http://localhost:3000
+npm install
+npm run dev      # utviklingsserver
+npm test         # Vitest-tester
+npm run build    # statisk bygg i dist/
+npm run preview  # se på bygget lokalt
 ```
 
-Etter en ny migrering må `npm run dev` startes på nytt, ellers bruker serveren den gamle Prisma-klienten.
+## Slik fungerer planleggeren
 
-Andre kommandoer:
+`scheduleWeek` i `src/lib/scheduler.ts` er en ren funksjon. Tidspunktet «nå» sendes inn, så testene får faste datoer.
 
-```bash
-npm test        # Vitest
-npm run lint
-npm run build
-```
+1. **Ledig tid per dag:** våkentid (standard 07–23 på hverdager og 09–00 i helgen) minus bønner, låste blokker, blokker du har lagt inn selv, sperret tid og det som allerede har vært.
+2. **Behov:**
+   - Tid per dag gjelder for hver dag, minus det som allerede ligger der.
+   - Tid per uke fordeles jevnt på dagene som er igjen. Bønnene teller ikke med i religionstiden, den kommer i tillegg.
+3. **Økter:** maks 90 min studietid i strekk, 45 min religion, 90 min familie og venner og 60 min alenetid, med minst 15 min pause mellom øktene.
+4. **Rekkefølge:** harde regler først, deretter skole, religion, familie og venner, og alenetid.
+5. **Tidspunkt:** hver økt får det ledige tidspunktet som passer best:
+   - studietid tidlig på dagen
+   - religion rett etter en bønn
+   - familie rundt middagstid
+   - alenetid om kvelden
+6. **Frister:** «ferdig innen» med en kategori er en grense for den kategorien. «Hjemme innen 19» gjør at blokker etter kl. 19 legges hjemme.
+7. **Ukesmål** som ikke får plass en dag, flyttes til neste dag.
+8. **Validering:** planen sjekkes i `src/lib/plan-validate.ts` før den lagres. Ingen blokker skal overlappe, ligge utenfor uka eller ligge i fortiden. Harde regler som ikke kunne oppfylles, vises som feil, og myke regler som ikke ble helt oppfylt, vises som advarsler.
 
-## Bruk
-
-- **Ny blokk:** dra over et tidsrom i kalenderen. På mobil holder du inne før du drar.
-- **Rediger:** klikk på en blokk for å endre tittel, kategori, sted (hjemme/ute), tid og notater.
-- **Flytt eller endre lengde:** dra blokken, eller dra i nederste kant.
-- **Lås:** en låst blokk (🔒, stripete) kan ikke dras. Planleggeren flytter den aldri. Du må låse den opp før du flytter eller sletter den.
-- **Overlapp:** manuelle blokker kan overlappe, men appen viser en advarsel.
-- **Uke og dag:** bytt visning med knappene øverst til høyre.
+Når du planlegger på nytt, byttes bare de ulåste planlagte blokkene fra nå og ut uka. Alt annet blir stående.
 
 ### Bønnetider
 
-Bønnene vises som faste blokker som ikke kan dras eller slettes. Standard er shia-praksis med tre blokker om dagen: **Fajr**, **Dhuhr + Asr** og **Maghrib + Isha**.
-
-- **Én dag:** klikk på en bønn for å se dagens tider (også soloppgang, solnedgang og midnatt) og sette en manuell tid. Den gjelder bare den datoen, og «Bruk beregnet» fjerner den.
-- **Innstillinger** (`/innstillinger`):
-  - beregningsmetode og vinkler
-  - Asr
-  - regel for lyse netter
-  - sammenslåing og varighet
-  - justering i minutter per bønn
-  - sted
-
-  Forhåndsvisningen viser de neste sju dagene, i tillegg til vinter, vår og midtsommer, før du lagrer.
-
-**Beregning** (`src/lib/prayer.ts`, med biblioteket [adhan](https://github.com/batoulapps/adhan-js)):
+Bønnetidene beregnes med [adhan](https://github.com/batoulapps/adhan-js) i `src/lib/prayer.ts`.
 
 | | Standard (Ja'fari, Leva-instituttet) |
 | --- | --- |
 | Fajr | Solen 16° under horisonten |
-| Maghrib | Solen 4° under horisonten, når rødfargen i øst er borte. Det er ca. 15–30 min etter solnedgang |
+| Maghrib | Solen 4° under horisonten, når rødfargen i øst er borte |
 | Isha | 14°. Aldri før Maghrib |
 | Midnatt | Midt mellom solnedgang og neste dags Fajr |
-| Lyse netter | «Midt på natten»: om sommeren når solen ikke 16° under horisonten i Oslo. Da settes Fajr og Isha til midten av natten |
+| Lyse netter | «Midt på natten». Om sommeren når solen ikke 16° under horisonten i Oslo |
 
-Tidene er testet mot [Aladhan](https://aladhan.com) (Ja'fari-metoden) for januar, mars, juni og oktober, og stemmer innen 3 minutter. Asr er sjekket mot en uavhengig solberegning, fordi Aladhans Asr avvek 4–8 minutter fra den. Testene kjøres også med andre tidssoner på maskinen, så resultatet ikke avhenger av hvor serveren står.
+Tidene er testet mot [Aladhan](https://aladhan.com) for januar, mars, juni og oktober (innen 3 minutter). Asr er sjekket mot en uavhengig solberegning. Testene kjøres også med andre tidssoner på maskinen. Hvis moskeen eller senteret ditt har en egen tabell, bruker du «Justering i minutter» eller endrer enkeltdager manuelt.
 
-Hvis moskeen eller senteret ditt har en egen tabell, bruker du «Justering i minutter» for å treffe den. Dager som avviker, overstyrer du manuelt.
+## Publisering
 
-## Arkitektur
+Push til `main`, så tester, bygger og publiserer workflowen i `.github/workflows/deploy.yml` appen. Under *Settings → Pages* i repoet setter du *Source* til **GitHub Actions**.
 
-- **Next.js 16 (App Router), React 19, TypeScript og Tailwind 4**
-- **Prisma 7 + SQLite** via `@prisma/adapter-better-sqlite3`. Klienten genereres til `src/generated/prisma`. For å bytte til PostgreSQL endrer du `provider` i `prisma/schema.prisma`, bruker `@prisma/adapter-pg` i `src/lib/db.ts` og setter `DATABASE_URL`.
-- **FullCalendar 6** (`timeGrid` + `interaction`) for uke- og dagsvisning med dra og slipp
-- **zod** validerer all input til API-et
+Siden er offentlig, men dataene er det ikke. Hver person som åpner lenken får sin egen kalender i sin egen nettleser, og ingen data sendes noe sted.
 
-Tider lagres i UTC og vises i nettleserens tidssone (Europe/Oslo).
+## Filstruktur
 
 ```
-prisma/schema.prisma           Event, Setting (JSON per nøkkel) og PrayerOverride
-src/lib/events.ts              Kategorier, zod-skjemaer, overlappsjekk (delt klient/server)
-src/lib/event-store.ts         Databasespørringer; slår sammen lagrede blokker og bønneblokker
-src/lib/prayer.ts              Beregning av bønnetider og bønneblokker (ren, uten database)
-src/lib/prayer-store.ts        Innstillinger og manuelle tider i databasen
-src/app/api/events/...         GET/POST /api/events, PATCH/DELETE /api/events/:id
-src/components/Calendar.tsx    Kalenderen
-src/components/EventDialog.tsx Skjema for å opprette og redigere blokker
-src/components/PrayerDialog.tsx        Dagens bønnetider og manuelle tider
-src/components/PrayerSettingsForm.tsx  Innstillingssiden med forhåndsvisning
+src/
+├── App.tsx                  faner (#kalender, #regler, #bonnetider)
+├── lib/
+│   ├── scheduler.ts         planleggeren (ren funksjon)
+│   ├── planner.ts           kjører planleggeren og bytter ut gamle planlagte blokker
+│   ├── plan-validate.ts     validering av en plan før lagring
+│   ├── free-time.ts         ledig tid: våkentid minus opptatt tid
+│   ├── prayer.ts            bønnetider og bønneblokker
+│   ├── rules.ts             regeltyper og norske beskrivelser
+│   ├── calendar.ts          datamodell og operasjoner (opprette, låse, slette …)
+│   ├── store.ts             lagring i localStorage
+│   ├── events.ts, week.ts   kategorier, tidssone og datoer
+│   └── *.test.ts            Vitest-tester
+└── components/              Calendar, EventDialog, PlanPanel, PrayerDialog,
+                             PrayerSettingsForm, RulesManager, RuleEditor
 ```
-
-### API
-
-| Metode | Rute | Beskrivelse |
-| --- | --- | --- |
-| GET | `/api/events?start=ISO&end=ISO` | Blokker og bønner i tidsrommet. Bønner har `source: "PRAYER"` |
-| POST | `/api/events` | Ny blokk. Svarer med `{ event, conflicts }` |
-| PATCH | `/api/events/:id` | Endre blokk. Gir `409` hvis du flytter en låst blokk |
-| DELETE | `/api/events/:id` | Slett blokk. Gir `409` hvis den er låst eller er en bønn |
-| GET | `/api/prayers/:date` | Beregnede og manuelle tider for en dato |
-| PUT | `/api/prayers/:date` | `{ prayer, time: "HH:mm" \| null }` setter eller fjerner en manuell tid |
-| GET/PUT | `/api/settings/prayer` | Innstillinger for bønnetider |
 
 ## Hvordan AI ble brukt
 
-Appen bygges med Claude Code. Jeg beskrev ideen og kravene på norsk, og Claude laget først en arkitekturplan. Den justerte vi sammen før noe kode ble skrevet, blant annet for shia-bønnetider og fleksibel våkentid. Hvert steg testes med Vitest og sjekkes i nettleseren før vi går videre.
+Appen er laget med Claude Code. Jeg beskrev ideen og kravene på norsk, og Claude laget først en arkitekturplan som vi justerte sammen. Blant annet endret vi bønnetidene til shia-praksis med tre bønner om dagen og gjorde våkentiden forskjellig for hverdager og helg.
+
+Første versjon brukte Claude API til planleggingen, med Next.js og en SQLite-database. Det krevde API-nøkkel og betaling. Derfor bygde vi appen om til en ren nettleser-app med en egen planleggingsalgoritme, slik som Eksamensklar. Hvert steg ble testet med Vitest og sjekket i nettleseren på PC- og mobilbredde før vi gikk videre.
