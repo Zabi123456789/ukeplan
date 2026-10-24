@@ -1,0 +1,47 @@
+// Datamodell for Ukeplan. Tider lagres i UTC og vises i Europe/Oslo.
+// Kategorier og kilder er enums, så skjemaet fungerer likt på SQLite og PostgreSQL.
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+enum Category {
+  RELIGION
+  SCHOOL
+  SOCIAL
+  ALONE
+  OTHER
+}
+
+enum Source {
+  MANUAL // lagt inn av deg
+  PRAYER // beregnet bønnetid (steg 2)
+  AI // planlagt av modellen (steg 3)
+}
+
+enum Location {
+  HOME
+  OUT
+}
+
+model Event {
+  id        String    @id @default(cuid())
+  title     String
+  category  Category
+  start     DateTime
+  end       DateTime
+  // Låste blokker flyttes aldri av planleggeren.
+  locked    Boolean   @default(false)
+  source    Source    @default(MANUAL)
+  location  Location?
+  notes     String?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  @@index([start])
+}

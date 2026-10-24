@@ -1,26 +1,92 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
-
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --background: #f6f5f2;
+  --surface: #ffffff;
+  --foreground: #1c1b19;
+  --muted: #6b6860;
+  --line: #e3e0d9;
+  --hover: #efede8;
+  --accent: #1f5f5b;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+    --background: #141413;
+    --surface: #1c1c1a;
+    --foreground: #ecebe7;
+    --muted: #a19e95;
+    --line: #34332f;
+    --hover: #272724;
+    --accent: #3f9d95;
   }
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-surface: var(--surface);
+  --color-foreground: var(--foreground);
+  --color-muted: var(--muted);
+  --color-line: var(--line);
+  --color-hover: var(--hover);
+  --color-accent: var(--accent);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+}
+
+/* FullCalendar i appens farger */
+.calendar-shell {
+  --fc-border-color: var(--line);
+  --fc-page-bg-color: var(--surface);
+  --fc-neutral-bg-color: var(--hover);
+  --fc-today-bg-color: color-mix(in srgb, var(--accent) 7%, transparent);
+  --fc-now-indicator-color: #dc2626;
+  --fc-button-bg-color: var(--surface);
+  --fc-button-border-color: var(--line);
+  --fc-button-text-color: var(--foreground);
+  --fc-button-hover-bg-color: var(--hover);
+  --fc-button-hover-border-color: var(--line);
+  --fc-button-active-bg-color: var(--accent);
+  --fc-button-active-border-color: var(--accent);
+  --fc-event-text-color: #fff;
+}
+.calendar-shell .fc .fc-button {
+  font-size: 0.85rem;
+  padding: 0.3rem 0.7rem;
+  box-shadow: none !important;
+}
+.calendar-shell .fc .fc-button-active {
+  color: #fff;
+}
+.calendar-shell .fc .fc-toolbar-title {
+  font-size: 1.05rem;
+  font-weight: 600;
+  text-transform: capitalize;
+}
+.calendar-shell .fc .fc-col-header-cell-cushion {
+  font-size: 0.8rem;
+  font-weight: 500;
+  text-transform: capitalize;
+}
+.calendar-shell .fc .fc-timegrid-slot-label {
+  font-size: 0.75rem;
+  color: var(--muted);
+}
+.calendar-shell .fc-event.is-locked {
+  background-image: repeating-linear-gradient(
+    -45deg,
+    transparent 0 6px,
+    rgb(255 255 255 / 0.12) 6px 12px
+  );
+}
+@media (max-width: 640px) {
+  .calendar-shell .fc .fc-toolbar {
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
 }
