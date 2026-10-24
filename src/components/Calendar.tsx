@@ -13,6 +13,7 @@ import FullCalendar from "@fullcalendar/react";
 import timeGridPlugin from "@fullcalendar/timegrid";
 import { useRef, useState } from "react";
 import { EventDialog, type EventDraft } from "@/components/EventDialog";
+import { PrayerDialog } from "@/components/PrayerDialog";
 import { CATEGORIES, CATEGORY_INFO, type CalendarEvent } from "@/lib/events";
 
 type Notice = { kind: "error" | "warning"; text: string };
@@ -37,6 +38,7 @@ export function Calendar() {
   const calendarRef = useRef<FullCalendar>(null);
   const [draft, setDraft] = useState<EventDraft | null>(null);
   const [notice, setNotice] = useState<Notice | null>(null);
+  const [prayerDate, setPrayerDate] = useState<string | null>(null);
 
   const refetch = () => calendarRef.current?.getApi().refetchEvents();
 
@@ -51,7 +53,7 @@ export function Calendar() {
       backgroundColor: CATEGORY_INFO[e.category].color,
       borderColor: CATEGORY_INFO[e.category].color,
       editable: !e.locked,
-      classNames: e.locked ? ["is-locked"] : [],
+      classNames: e.source === "PRAYER" ? ["is-prayer"] : e.locked ? ["is-locked"] : [],
       extendedProps: e,
     }));
   }
@@ -71,6 +73,8 @@ export function Calendar() {
 
   function onEventClick(info: EventClickArg) {
     const e = info.event.extendedProps as CalendarEvent;
+    // Bønneblokker har id-en "prayer:YYYY-MM-DD:FAJR"
+    if (e.source === "PRAYER") return setPrayerDate(e.id.split(":")[1]);
     setDraft({ ...e, start: new Date(e.start), end: new Date(e.end) });
   }
 
@@ -123,7 +127,7 @@ export function Calendar() {
             {CATEGORY_INFO[c].label}
           </span>
         ))}
-        <span className="ml-auto">Dra i kalenderen for å lage en blokk. Klikk på en blokk for å redigere.</span>
+        <span className="ml-auto">Dra i kalenderen for å lage en blokk. Klikk på en blokk eller bønn for å redigere.</span>
       </div>
 
       {notice && (
@@ -178,17 +182,29 @@ export function Calendar() {
           onClose={() => setDraft(null)}
         />
       )}
+
+      {prayerDate && <PrayerDialog date={prayerDate} onChanged={refetch} onClose={() => setPrayerDate(null)} />}
     </div>
   );
 }
 
 function renderEvent(arg: EventContentArg) {
   const e = arg.event.extendedProps as CalendarEvent;
+  const minutes = ((arg.event.end?.getTime() ?? 0) - (arg.event.start?.getTime() ?? 0)) / 60_000;
+  if (minutes < 45) {
+    // Korte blokker (f.eks. bønner på 15–20 min): én linje
+    return (
+      <div className="flex h-full items-center gap-1.5 overflow-hidden px-1 text-[11px] leading-none">
+        <span className="truncate font-medium">{arg.event.title}</span>
+        <span className="shrink-0 opacity-75">{arg.timeText.split(" - ")[0]}</span>
+      </div>
+    );
+  }
   return (
     <div className="flex h-full flex-col overflow-hidden px-1 py-0.5 leading-tight">
       <span className="truncate text-[11px] opacity-90">{arg.timeText}</span>
       <span className="truncate text-xs font-medium">
-        {e.locked && <span aria-label="Låst">🔒 </span>}
+        {e.locked && e.source !== "PRAYER" && <span aria-label="Låst">🔒 </span>}
         {arg.event.title}
       </span>
     </div>

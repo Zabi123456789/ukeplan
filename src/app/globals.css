@@ -90,3 +90,14 @@ body {
     gap: 0.5rem;
   }
 }
+/* Bønnetider: faste, rolige blokker som skiller seg fra planlagte aktiviteter */
+.calendar-shell .fc-event.is-prayer {
+  background: color-mix(in srgb, #0f766e 16%, var(--surface)) !important;
+  border-color: transparent !important;
+  border-left: 3px solid #0f766e !important;
+  color: var(--foreground);
+  cursor: pointer;
+}
+.calendar-shell .fc-event.is-prayer .fc-event-main {
+  color: var(--foreground);
+}

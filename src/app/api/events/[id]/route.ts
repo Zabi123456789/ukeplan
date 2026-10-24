@@ -1,9 +1,13 @@
 import { prisma } from "@/lib/db";
 import { updateEventSchema } from "@/lib/events";
 import { conflictsFor, jsonError, toCalendarEvent } from "@/lib/event-store";
+import { isPrayerId } from "@/lib/prayer-store";
+
+const PRAYER_FIXED = "Bønnetider flyttes ikke. Endre tiden ved å klikke på bønnen, eller i innstillingene.";
 
 export async function PATCH(request: Request, ctx: RouteContext<"/api/events/[id]">) {
   const { id } = await ctx.params;
+  if (isPrayerId(id)) return jsonError(PRAYER_FIXED, 409);
   const parsed = updateEventSchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return jsonError("Ugyldig endring", 400, parsed.error.issues);
 
@@ -27,6 +31,7 @@ export async function PATCH(request: Request, ctx: RouteContext<"/api/events/[id
 
 export async function DELETE(_request: Request, ctx: RouteContext<"/api/events/[id]">) {
   const { id } = await ctx.params;
+  if (isPrayerId(id)) return jsonError(PRAYER_FIXED, 409);
   const existing = await prisma.event.findUnique({ where: { id } });
   if (!existing) return jsonError("Fant ikke hendelsen", 404);
   if (existing.locked) return jsonError("Blokken er låst. Lås den opp før du sletter den.", 409);

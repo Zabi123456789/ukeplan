@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/db";
 import { createEventSchema } from "@/lib/events";
-import { conflictsFor, jsonError, listEvents, toCalendarEvent } from "@/lib/event-store";
+import { conflictsFor, jsonError, listCalendar, toCalendarEvent } from "@/lib/event-store";
 
 // GET /api/events?start=ISO&end=ISO
 export async function GET(request: Request) {
@@ -10,8 +10,7 @@ export async function GET(request: Request) {
   if (isNaN(from.getTime()) || isNaN(to.getTime())) {
     return jsonError("start og end må være gyldige datoer", 400);
   }
-  const events = await listEvents(from, to);
-  return Response.json(events.map(toCalendarEvent));
+  return Response.json(await listCalendar(from, to));
 }
 
 export async function POST(request: Request) {

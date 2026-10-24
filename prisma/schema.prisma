@@ -45,3 +45,29 @@ model Event {
 
   @@index([start])
 }
+
+// Innstillinger som JSON per nøkkel (f.eks. "prayer"), validert med zod i koden.
+// Nye felt får standardverdier uten at databasen må migreres.
+model Setting {
+  key       String   @id
+  value     String
+  updatedAt DateTime @updatedAt
+}
+
+enum Prayer {
+  FAJR
+  DHUHR
+  ASR
+  MAGHRIB
+  ISHA
+}
+
+// Manuell bønnetid for én dato. Går foran beregningen.
+model PrayerOverride {
+  id     String @id @default(cuid())
+  date   String // YYYY-MM-DD i innstillingenes tidssone
+  prayer Prayer
+  time   String // HH:mm
+
+  @@unique([date, prayer])
+}

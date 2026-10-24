@@ -19,6 +19,7 @@
     "@fullcalendar/timegrid": "6.1.22",
     "@prisma/adapter-better-sqlite3": "7.10.1",
     "@prisma/client": "7.10.1",
+    "adhan": "4.4.6",
     "better-sqlite3": "12.11.1",
     "date-fns": "4.4.0",
     "next": "16.4.3",
