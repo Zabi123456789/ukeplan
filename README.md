@@ -13,7 +13,7 @@ Det er en ren frontend-app (React + Vite + TypeScript). All data lagres i nettle
 - **Gjenta hver uke:** nye blokker kan legges inn flere uker fram, f.eks. en fast jobbvakt på mandager.
 - **Låste blokker** (🔒) blir aldri flyttet av planleggeren, og må låses opp før du flytter eller sletter dem selv.
 - **Bønnetider for Oslo** (shia/Ja'fari) beregnes automatisk for hver dato. Standard er tre faste blokker: Fajr, Dhuhr + Asr og Maghrib + Isha. Du kan endre en enkelt dag manuelt, og metode, vinkler og regel for lyse netter stilles inn under Bønnetider.
-- **Regler, harde og myke:** tid per dag, tid per uke, ferdig innen et klokkeslett (f.eks. hjemme innen 19), våkentid og sperret tid. Tidsregler kan deles i et bestemt antall økter, f.eks. «4 t skole i to økter» eller «8 t trening fordelt på 4 økter». Forslag ligger klare.
+- **Regler, harde og myke:** tid per dag, tid per uke, ferdig innen et klokkeslett (f.eks. hjemme innen 19), våkentid og sperret tid. Tidsregler per dag kan hoppe over jobbdager (dager med minst 4 t jobb). Det er automatisk på for skole, så du ikke studerer de dagene du jobber. Tidsregler kan deles i et bestemt antall økter, f.eks. «4 t skole i to økter» eller «8 t trening fordelt på 4 økter». Forslag ligger klare.
 - **Planlegg uka:** fyller uka ut fra reglene og viser hva som ikke fikk plass.
 - **Opptrapping (valgfri):** tidsmålene kan starte lavere og øke hver uke, f.eks. 50 % i uke 1 og 10 prosentpoeng mer hver uke. Den er av som standard.
 - **Omplanlegging:** legger du inn eller flytter noe, flyttes bare de planlagte blokkene som kolliderer. Du ser hva som ble endret, og kan angre.

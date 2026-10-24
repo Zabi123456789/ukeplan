@@ -1,5 +1,5 @@
 import { CATEGORIES, CATEGORY_INFO, LOCATION_LABEL, LOCATIONS, type Category, type Location } from "@/lib/events";
-import { RULE_KINDS, WEEKDAY_LABEL, WEEKDAYS, type RuleInput, type RuleKind, type RuleParams, type Weekday } from "@/lib/rules";
+import { RULE_KINDS, skipsWorkDays, WEEKDAY_LABEL, WEEKDAYS, type RuleInput, type RuleKind, type RuleParams, type Weekday } from "@/lib/rules";
 
 const field =
   "rounded-md border border-line bg-surface px-2 py-1.5 text-sm outline-none focus:border-accent focus:ring-2 focus:ring-accent/20";
@@ -8,7 +8,7 @@ const ALL_DAYS = [...WEEKDAYS];
 
 /** Standardverdier når du bytter regeltype. */
 const DEFAULTS: Record<RuleKind, RuleParams> = {
-  DAILY_TIME: { kind: "DAILY_TIME", category: "SCHOOL", minutes: 120, days: ALL_DAYS, sessions: null },
+  DAILY_TIME: { kind: "DAILY_TIME", category: "SCHOOL", minutes: 120, days: ALL_DAYS, sessions: null, skipWorkDays: null },
   WEEKLY_TIME: { kind: "WEEKLY_TIME", category: "RELIGION", minMinutes: 180, maxMinutes: 240, sessions: null },
   LATEST_END: { kind: "LATEST_END", time: "19:00", days: ["MON", "TUE", "WED", "THU", "FRI"], location: "OUT", category: null },
   AWAKE_HOURS: { kind: "AWAKE_HOURS", days: ALL_DAYS, wake: "07:00", sleep: "23:00" },
@@ -49,6 +49,15 @@ export function RuleEditor({ value, onChange }: { value: RuleInput; onChange: (v
           <HoursInput label="timer per dag" minutes={p.minutes} onChange={(minutes) => setParams({ minutes })} />
           <SessionsInput value={p.sessions} onChange={(sessions) => setParams({ sessions })} />
           <DayPicker value={p.days} onChange={(days) => setParams({ days })} />
+          <label className="flex items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              className="size-4 accent-accent"
+              checked={skipsWorkDays(p)}
+              onChange={(e) => setParams({ skipWorkDays: e.target.checked })}
+            />
+            Ikke på jobbdager (minst 4 t jobb)
+          </label>
         </Row>
       )}
 

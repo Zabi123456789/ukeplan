@@ -27,7 +27,15 @@ const sessions = z.number().int().min(1).max(14).nullable().default(null);
 /** Regeltypene. Bønnetider er ikke regler: de er faste blokker i kalenderen. */
 export const ruleParamsSchema = z.discriminatedUnion("kind", [
   // «Studere 5 timer hver dag». Teller ikke bønneblokker.
-  z.object({ kind: z.literal("DAILY_TIME"), category: z.enum(CATEGORIES), minutes, days, sessions }),
+  z.object({
+    kind: z.literal("DAILY_TIME"),
+    category: z.enum(CATEGORIES),
+    minutes,
+    days,
+    sessions,
+    // Gjelder ikke dager med minst 4 t jobb. null = automatisk: på for skole, av ellers.
+    skipWorkDays: z.boolean().nullable().default(null),
+  }),
   // «3–4 timer religion i uka» (i tillegg til bønnene)
   z.object({
     kind: z.literal("WEEKLY_TIME"),
@@ -106,7 +114,7 @@ export function describeDays(d: Weekday[]) {
 export function describeRule(p: RuleParams): string {
   switch (p.kind) {
     case "DAILY_TIME":
-      return `${CATEGORY_INFO[p.category].label}: ${hours(p.minutes)} per dag${inSessions(p.sessions)} (${describeDays(p.days)})`;
+      return `${CATEGORY_INFO[p.category].label}: ${hours(p.minutes)} per dag${inSessions(p.sessions)} (${describeDays(p.days)}${skipsWorkDays(p) ? ", ikke på jobbdager" : ""})`;
     case "WEEKLY_TIME":
       return `${CATEGORY_INFO[p.category].label}: ${p.maxMinutes ? `${num(p.minMinutes)}–${hours(p.maxMinutes)}` : `minst ${hours(p.minMinutes)}`} i uka${inSessions(p.sessions)}${p.category === "RELIGION" ? " i tillegg til bønnene" : ""}`;
     case "LATEST_END": {
@@ -123,6 +131,14 @@ export function describeRule(p: RuleParams): string {
       return p.text;
   }
 }
+
+/** Om en dagsregel hoppes over på jobbdager (automatisk for skole). */
+export function skipsWorkDays(p: { category: string; skipWorkDays: boolean | null }) {
+  return p.skipWorkDays ?? p.category === "SCHOOL";
+}
+
+/** En jobbdag er en dag med minst så mange minutter jobb. */
+export const WORKDAY_MINUTES = 240;
 
 export const toMinutes = (t: string) => {
   const [h, m] = t.split(":").map(Number);

@@ -27,7 +27,7 @@ describe("opptrapping", () => {
 
   it("skalerer bare tidsmål, og runder til kvarter", () => {
     const rules: Rule[] = [
-      { id: "a", strength: "SOFT", enabled: true, sourceText: null, params: { kind: "DAILY_TIME", category: "SCHOOL", minutes: 300, days: ["MON"], sessions: null } },
+      { id: "a", strength: "SOFT", enabled: true, sourceText: null, params: { kind: "DAILY_TIME", category: "SCHOOL", minutes: 300, days: ["MON"], sessions: null, skipWorkDays: null } },
       { id: "b", strength: "SOFT", enabled: true, sourceText: null, params: { kind: "WEEKLY_TIME", category: "RELIGION", minMinutes: 180, maxMinutes: 240, sessions: null } },
       { id: "c", strength: "SOFT", enabled: true, sourceText: null, params: { kind: "AWAKE_HOURS", days: ["MON"], wake: "07:00", sleep: "23:00" } },
     ];

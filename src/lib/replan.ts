@@ -1,7 +1,7 @@
 import { calendarBetween, type AppData } from "@/lib/calendar";
 import { overlapsWith, type CalendarEvent, type Category } from "@/lib/events";
 import { awakeFor, ceilToQuarter, freeIntervals, type Interval } from "@/lib/free-time";
-import { validatePlan, type FixedBlock } from "@/lib/plan-validate";
+import { dailyRuleApplies, validatePlan, type FixedBlock } from "@/lib/plan-validate";
 import { percentFor, scaleRules } from "@/lib/progression";
 import type { Rule } from "@/lib/rules";
 import { blockedSpans, deadlineFor, locationFor } from "@/lib/scheduler";
@@ -12,7 +12,7 @@ import { addDays, localParts, mondayOf, weekdayOf, weekRange } from "@/lib/week"
 
 export type Change =
   | { kind: "moved"; id: string; title: string; from: Interval; to: Interval }
-  | { kind: "removed"; id: string; title: string; from: Interval; reason: "covered" | "no-room" };
+  | { kind: "removed"; id: string; title: string; from: Interval; reason: "covered" | "no-room" | "workday" };
 
 type Victim = Omit<CalendarEvent, "start" | "end"> & Interval;
 
@@ -27,11 +27,28 @@ export function adjustAround(data: AppData, anchorId: string, now = new Date()):
   if (!anchor) return { data, changes: [] };
   const anchorSpan = { id: anchor.id, start: new Date(anchor.start), end: new Date(anchor.end) };
 
-  // Planlagte, ulåste blokker som kolliderer og ikke allerede er over
-  const victims = overlapsWith(
-    anchorSpan,
-    data.events.filter((e) => e.source === "AI" && !e.locked && new Date(e.end) > now).map((e) => ({ ...e, start: new Date(e.start), end: new Date(e.end) })),
-  ).sort((a, b) => a.start.getTime() - b.start.getTime());
+  // Planlagte, ulåste blokker som ikke allerede er over
+  const planned = data.events
+    .filter((e) => e.source === "AI" && !e.locked && new Date(e.end) > now)
+    .map((e) => ({ ...e, start: new Date(e.start), end: new Date(e.end) }));
+  const anchorDate = localParts(anchorSpan.start).date;
+  const dayRules = data.rules.filter((r) => r.enabled);
+  const blocksThatDay = data.events.map((e) => ({ ...e, start: new Date(e.start), end: new Date(e.end) }));
+  // De som kolliderer, pluss økter samme dag som ikke lenger skal være der (f.eks. studietid når dagen er blitt en jobbdag)
+  const noLongerWanted = planned.filter(
+    (e) =>
+      localParts(e.start).date === anchorDate &&
+      dayRules.some(
+        (r) =>
+          r.params.kind === "DAILY_TIME" &&
+          r.params.category === e.category &&
+          r.params.days.includes(weekdayOf(anchorDate)) &&
+          !dailyRuleApplies(r.params, anchorDate, blocksThatDay),
+      ),
+  );
+  const victims = [...new Map([...overlapsWith(anchorSpan, planned), ...noLongerWanted].map((v) => [v.id, v])).values()].sort(
+    (a, b) => a.start.getTime() - b.start.getTime(),
+  );
   if (victims.length === 0) return { data, changes: [] };
 
   const victimIds = new Set(victims.map((v) => v.id));
@@ -52,7 +69,10 @@ export function adjustAround(data: AppData, anchorId: string, now = new Date()):
     // Hvor mye trengs fortsatt? Det du la inn kan allerede dekke behovet.
     const need = Math.min(minutesOf(v), stillNeeded(v.category, date, rules, fixed));
     if (need < GAP) {
-      changes.push({ kind: "removed", id: v.id, title: v.title, from, reason: "covered" });
+      const workday = rules.some(
+        (r) => r.params.kind === "DAILY_TIME" && r.params.category === v.category && r.params.days.includes(weekdayOf(date)) && !dailyRuleApplies(r.params, date, fixed),
+      );
+      changes.push({ kind: "removed", id: v.id, title: v.title, from, reason: workday ? "workday" : "covered" });
       continue;
     }
 
@@ -102,8 +122,11 @@ function stillNeeded(category: Category, date: string, rules: Rule[], fixed: Fix
     fixed.filter((b) => b.source !== "PRAYER" && b.category === category && filter(b)).reduce((s, b) => s + minutesOf(b), 0);
 
   const daily = rules.flatMap((r) =>
-    r.params.kind === "DAILY_TIME" && r.params.category === category && r.params.days.includes(weekdayOf(date)) ? [r.params.minutes] : [],
+    r.params.kind === "DAILY_TIME" && r.params.category === category && r.params.days.includes(weekdayOf(date))
+      ? [dailyRuleApplies(r.params, date, fixed) ? r.params.minutes : 0]
+      : [],
   );
+  // På en jobbdag der regelen ikke gjelder, er behovet 0: blokken fjernes i stedet for å flyttes
   if (daily.length) return Math.max(...daily) - sum((b) => localParts(b.start).date === date);
 
   const weekly = rules.flatMap((r) => (r.params.kind === "WEEKLY_TIME" && r.params.category === category ? [r.params.minMinutes] : []));

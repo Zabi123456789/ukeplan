@@ -13,9 +13,9 @@ let n = 0;
 const rule = (params: RuleParams): Rule => ({ id: `r${++n}`, strength: "SOFT", enabled: true, sourceText: null, params });
 const rules = [
   ...DEFAULT_RULES.map((r, i) => ({ ...r, id: `d${i}` })),
-  rule({ kind: "DAILY_TIME", category: "SCHOOL", minutes: 300, days: [...ALL], sessions: null }),
+  rule({ kind: "DAILY_TIME", category: "SCHOOL", minutes: 300, days: [...ALL], sessions: null, skipWorkDays: null }),
   rule({ kind: "WEEKLY_TIME", category: "RELIGION", minMinutes: 180, maxMinutes: 240, sessions: null }),
-  rule({ kind: "DAILY_TIME", category: "SOCIAL", minutes: 90, days: [...ALL], sessions: null }),
+  rule({ kind: "DAILY_TIME", category: "SOCIAL", minutes: 90, days: [...ALL], sessions: null, skipWorkDays: null }),
 ];
 
 /** En planlagt uke uten opptrapping. */
@@ -118,5 +118,15 @@ describe("adjustAround", () => {
     const { data: withAppt, event } = add(planned(), "Tannlege", "OTHER", "08:00", "12:00");
     const { changes } = adjustAround(withAppt, event.id, later);
     expect(changes.every((c) => c.from.end > later)).toBe(true);
+  });
+
+  it("fjerner studietiden når du legger inn en vakt på 8 t", () => {
+    const { data: withWork, event } = add(planned(), "Jobb", "WORK", "08:00", "16:00");
+    const { data, changes } = adjustAround(withWork, event.id, NOW);
+    const school = changes.filter((c) => c.title === "Studietid");
+    expect(school.length).toBeGreaterThan(0);
+    expect(school.every((c) => c.kind === "removed" && c.reason === "workday")).toBe(true);
+    expect(schoolMinutes(data)).toBe(0);
+    expectNoOverlaps(data);
   });
 });

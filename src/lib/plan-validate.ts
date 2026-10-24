@@ -1,5 +1,5 @@
 import { CATEGORY_INFO, findOverlaps, overlapsWith, type Category, type Location, type Source } from "@/lib/events";
-import { describeRule, toMinutes, type Rule, type RuleParams } from "@/lib/rules";
+import { describeRule, skipsWorkDays, toMinutes, WORKDAY_MINUTES, type Rule, type RuleParams } from "@/lib/rules";
 import { addDays, localDateTime, localParts, TIME_ZONE, weekDates, weekdayOf } from "@/lib/week";
 
 // Sjekker en plan fra planleggeren før den lagres, uavhengig av hvordan den ble laget. Ren funksjon.
@@ -129,7 +129,7 @@ function checkRule(p: RuleParams, blocks: ProposedBlock[], input: ValidationInpu
       break;
     case "DAILY_TIME":
       for (const date of plannableDates(input.monday, input.window.from, tz)) {
-        if (!p.days.includes(weekdayOf(date))) continue;
+        if (!dailyRuleApplies(p, date, [...blocks, ...input.fixed], tz)) continue;
         const total = minutesInCategory(p.category, blocks, input.fixed, tz, (d) => d === date);
         if (total < p.minutes - TOLERANCE_MIN) {
           out.push(`${CATEGORY_INFO[p.category].label} ${date}: ${hoursText(total)} av ${hoursText(p.minutes)}.`);
@@ -149,6 +149,24 @@ function checkRule(p: RuleParams, blocks: ProposedBlock[], input: ValidationInpu
       break; // fri tekst: modellen får den, men den kan ikke sjekkes i kode
   }
   return out;
+}
+
+/** Er datoen en jobbdag (minst 4 t jobb)? */
+export function isWorkDay(date: string, blocks: { category: Category; start: Date; end: Date }[], tz = TIME_ZONE) {
+  const work = blocks
+    .filter((b) => b.category === "WORK" && localParts(b.start, tz).date === date)
+    .reduce((s, b) => s + minutesOf(b), 0);
+  return work >= WORKDAY_MINUTES;
+}
+
+/** Gjelder dagsregelen denne datoen? (Riktig ukedag, og ikke en jobbdag hvis regelen hopper over dem.) */
+export function dailyRuleApplies(
+  p: Extract<RuleParams, { kind: "DAILY_TIME" }>,
+  date: string,
+  blocks: { category: Category; start: Date; end: Date }[],
+  tz = TIME_ZONE,
+) {
+  return p.days.includes(weekdayOf(date)) && !(skipsWorkDays(p) && isWorkDay(date, blocks, tz));
 }
 
 /** Minutter i kategorien (bønneblokker teller ikke), for blokker som starter på datoene som slipper gjennom. */

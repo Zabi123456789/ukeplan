@@ -16,7 +16,7 @@ const defaults = DEFAULT_RULES.map((r, i) => ({ ...r, id: `default-${i}` }));
 const ALL = ["MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"] as const;
 
 // Eksemplene fra beskrivelsen av appen
-const school5 = rule({ kind: "DAILY_TIME", category: "SCHOOL", minutes: 300, days: [...ALL], sessions: null });
+const school5 = rule({ kind: "DAILY_TIME", category: "SCHOOL", minutes: 300, days: [...ALL], sessions: null, skipWorkDays: null });
 const religion = rule({ kind: "WEEKLY_TIME", category: "RELIGION", minMinutes: 180, maxMinutes: 240, sessions: null });
 const home19 = rule({ kind: "LATEST_END", time: "19:00", days: ["MON", "TUE", "WED", "THU", "FRI"], location: "OUT", category: null });
 const example = [...defaults, school5, religion, home19];
@@ -93,7 +93,7 @@ describe("scheduleWeek med faste blokker og regler", () => {
   it("holder harde frister og sperret tid", () => {
     const schoolBy17 = rule({ kind: "LATEST_END", time: "17:00", days: [...ALL], location: null, category: "SCHOOL" }, "HARD");
     const fridayOff = rule({ kind: "BLOCKED_TIME", days: ["FRI"], start: "16:00", end: "23:00", title: "Fredagskveld" }, "HARD");
-    const social = rule({ kind: "DAILY_TIME", category: "SOCIAL", minutes: 90, days: [...ALL], sessions: null });
+    const social = rule({ kind: "DAILY_TIME", category: "SOCIAL", minutes: 90, days: [...ALL], sessions: null, skipWorkDays: null });
     const r = scheduleWeek({ monday: MONDAY, now: SUNDAY_BEFORE, rules: [...defaults, school5, schoolBy17, fridayOff, social], fixed: prayers() });
     expect(r.errors).toEqual([]);
     for (const b of r.blocks.filter((b) => b.category === "SCHOOL")) expect(localParts(b.end).time <= "17:00").toBe(true);
@@ -102,7 +102,7 @@ describe("scheduleWeek med faste blokker og regler", () => {
   });
 
   it("legger blokker etter 19 hjemme når du vil være hjemme da", () => {
-    const evening = rule({ kind: "DAILY_TIME", category: "ALONE", minutes: 60, days: ["MON"], sessions: null });
+    const evening = rule({ kind: "DAILY_TIME", category: "ALONE", minutes: 60, days: ["MON"], sessions: null, skipWorkDays: null });
     const r = scheduleWeek({ monday: MONDAY, now: SUNDAY_BEFORE, rules: [...defaults, evening, home19], fixed: prayers() });
     const alone = r.blocks.find((b) => b.category === "ALONE")!;
     expect(localParts(alone.start).time).toBe("21:00"); // alenetid legges helst kl. 21
@@ -133,7 +133,7 @@ describe("scheduleWeek med faste blokker og regler", () => {
   });
 
   it("melder fra når noe ikke får plass: myke regler gir advarsel, harde gir feil", () => {
-    const tooMuch = rule({ kind: "DAILY_TIME", category: "SCHOOL", minutes: 20 * 60, days: ["MON"], sessions: null });
+    const tooMuch = rule({ kind: "DAILY_TIME", category: "SCHOOL", minutes: 20 * 60, days: ["MON"], sessions: null, skipWorkDays: null });
     const soft = scheduleWeek({ monday: MONDAY, now: SUNDAY_BEFORE, rules: [...defaults, tooMuch], fixed: prayers() });
     expect(soft.errors).toEqual([]);
     expect(soft.warnings[0].message).toMatch(/Skole 2026-10-26: .* av 20 t/);
@@ -211,7 +211,7 @@ describe("planWeek med opptrapping", () => {
 });
 
 describe("økter og spredning", () => {
-  const school4in2 = rule({ kind: "DAILY_TIME", category: "SCHOOL", minutes: 240, days: [...ALL], sessions: 2 });
+  const school4in2 = rule({ kind: "DAILY_TIME", category: "SCHOOL", minutes: 240, days: [...ALL], sessions: 2, skipWorkDays: null });
   const training = rule({ kind: "WEEKLY_TIME", category: "TRAINING", minMinutes: 480, maxMinutes: null, sessions: 4 });
   const r = scheduleWeek({ monday: MONDAY, now: SUNDAY_BEFORE, rules: [...defaults, school4in2, training], fixed: prayers() });
 
@@ -234,10 +234,10 @@ describe("økter og spredning", () => {
 });
 
 describe("trening og små rester", () => {
-  const school4in2 = rule({ kind: "DAILY_TIME", category: "SCHOOL", minutes: 240, days: [...ALL], sessions: 2 });
+  const school4in2 = rule({ kind: "DAILY_TIME", category: "SCHOOL", minutes: 240, days: [...ALL], sessions: 2, skipWorkDays: null });
   const training = rule({ kind: "WEEKLY_TIME", category: "TRAINING", minMinutes: 480, maxMinutes: null, sessions: 4 });
-  const social = rule({ kind: "DAILY_TIME", category: "SOCIAL", minutes: 90, days: [...ALL], sessions: null });
-  const alone = rule({ kind: "DAILY_TIME", category: "ALONE", minutes: 60, days: [...ALL], sessions: null });
+  const social = rule({ kind: "DAILY_TIME", category: "SOCIAL", minutes: 90, days: [...ALL], sessions: null, skipWorkDays: null });
+  const alone = rule({ kind: "DAILY_TIME", category: "ALONE", minutes: 60, days: [...ALL], sessions: null, skipWorkDays: null });
   const r = scheduleWeek({ monday: MONDAY, now: SUNDAY_BEFORE, rules: [...defaults, school4in2, training, social, alone, home19], fixed: prayers() });
 
   it("legger trening ute og ferdig innen 19 på hverdager", () => {
@@ -258,5 +258,36 @@ describe("trening og små rester", () => {
 
   it("lager ingen økter under en halvtime", () => {
     for (const b of r.blocks) expect(b.end.getTime() - b.start.getTime()).toBeGreaterThanOrEqual(30 * 60_000);
+  });
+});
+
+describe("jobbdager", () => {
+  const work = (date: string, from: string, to: string): FixedBlock => ({
+    id: `jobb-${date}`,
+    title: "Jobb",
+    category: "WORK",
+    start: localDateTime(date, from),
+    end: localDateTime(date, to),
+    source: "MANUAL",
+    locked: false,
+  });
+  const school = rule({ kind: "DAILY_TIME", category: "SCHOOL", minutes: 240, days: [...ALL], sessions: 2, skipWorkDays: null });
+
+  it("planlegger ikke studietid på dager med 8 t jobb, men resten av uka som vanlig", () => {
+    const r = scheduleWeek({ monday: MONDAY, now: SUNDAY_BEFORE, rules: [...defaults, school], fixed: [...prayers(), work(MONDAY, "08:00", "16:00")] });
+    expect(minutes(r.blocks, "SCHOOL", MONDAY)).toBe(0);
+    expect(minutes(r.blocks, "SCHOOL", "2026-10-27")).toBe(240);
+    expect(r.warnings).toEqual([]); // mandag regnes ikke som et brudd
+  });
+
+  it("en kort vakt (under 4 t) gjør ikke dagen til en jobbdag", () => {
+    const r = scheduleWeek({ monday: MONDAY, now: SUNDAY_BEFORE, rules: [...defaults, school], fixed: [...prayers(), work(MONDAY, "08:00", "10:00")] });
+    expect(minutes(r.blocks, "SCHOOL", MONDAY)).toBe(240);
+  });
+
+  it("kan slås av per regel", () => {
+    const always = rule({ kind: "DAILY_TIME", category: "SCHOOL", minutes: 120, days: [...ALL], sessions: null, skipWorkDays: false });
+    const r = scheduleWeek({ monday: MONDAY, now: SUNDAY_BEFORE, rules: [...defaults, always], fixed: [...prayers(), work(MONDAY, "08:00", "16:00")] });
+    expect(minutes(r.blocks, "SCHOOL", MONDAY)).toBe(120);
   });
 });

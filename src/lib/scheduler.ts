@@ -1,6 +1,6 @@
 import { CATEGORIES, CATEGORY_INFO, type Category } from "@/lib/events";
 import { awakeFor, ceilToQuarter, freeIntervals, subtract, type Interval } from "@/lib/free-time";
-import { plannableDates, validatePlan, type Finding, type FixedBlock, type ProposedBlock } from "@/lib/plan-validate";
+import { dailyRuleApplies, plannableDates, validatePlan, type Finding, type FixedBlock, type ProposedBlock } from "@/lib/plan-validate";
 import { toMinutes, type Rule, type Strength } from "@/lib/rules";
 import { addDays, localDateTime, localParts, weekDates, weekdayOf, weekRange } from "@/lib/week";
 
@@ -117,7 +117,7 @@ function buildTasks(input: ScheduleInput, rules: Rule[], plannable: string[]): T
   for (const r of rules) {
     if (r.params.kind !== "DAILY_TIME") continue;
     for (const date of plannable) {
-      if (!r.params.days.includes(weekdayOf(date))) continue;
+      if (!dailyRuleApplies(r.params, date, input.fixed)) continue;
       const key = `${date}|${r.params.category}`;
       const prev = daily.get(key);
       const minutes = Math.max(prev?.minutes ?? 0, r.params.minutes);

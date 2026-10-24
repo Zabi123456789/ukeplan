@@ -10,12 +10,12 @@ const WEEKDAYS_ONLY = WEEKDAYS.filter((d) => d !== "SAT" && d !== "SUN");
 
 /** Forslag basert på de fire kategoriene. Brukeren legger dem til og justerer. */
 const SUGGESTIONS: RuleInput[] = [
-  { strength: "SOFT", enabled: true, sourceText: "Studere 4 timer hver dag, helst i to økter", params: { kind: "DAILY_TIME", category: "SCHOOL", minutes: 240, days: EVERY_DAY, sessions: 2 } },
+  { strength: "SOFT", enabled: true, sourceText: "Studere 4 timer hver dag, helst i to økter, men ikke når jeg jobber", params: { kind: "DAILY_TIME", category: "SCHOOL", minutes: 240, days: EVERY_DAY, sessions: 2, skipWorkDays: null } },
   { strength: "SOFT", enabled: true, sourceText: "3–4 timer religion", params: { kind: "WEEKLY_TIME", category: "RELIGION", minMinutes: 180, maxMinutes: 240, sessions: null } },
   { strength: "SOFT", enabled: true, sourceText: "Trene 4 ganger i uka, 2 timer hver gang", params: { kind: "WEEKLY_TIME", category: "TRAINING", minMinutes: 480, maxMinutes: null, sessions: 4 } },
   { strength: "SOFT", enabled: true, sourceText: "Være hjemme rundt kl. 19 de fleste dager", params: { kind: "LATEST_END", time: "19:00", days: WEEKDAYS_ONLY, location: "OUT", category: null } },
-  { strength: "SOFT", enabled: true, sourceText: "Tid med familie og venner hver dag", params: { kind: "DAILY_TIME", category: "SOCIAL", minutes: 90, days: EVERY_DAY, sessions: null } },
-  { strength: "SOFT", enabled: true, sourceText: "Litt alenetid hver kveld", params: { kind: "DAILY_TIME", category: "ALONE", minutes: 60, days: EVERY_DAY, sessions: null } },
+  { strength: "SOFT", enabled: true, sourceText: "Tid med familie og venner hver dag", params: { kind: "DAILY_TIME", category: "SOCIAL", minutes: 90, days: EVERY_DAY, sessions: null, skipWorkDays: null } },
+  { strength: "SOFT", enabled: true, sourceText: "Litt alenetid hver kveld", params: { kind: "DAILY_TIME", category: "ALONE", minutes: 60, days: EVERY_DAY, sessions: null, skipWorkDays: null } },
 ];
 
 const sameParams = (a: RuleInput, b: RuleInput) => JSON.stringify(a.params) === JSON.stringify(b.params);

@@ -120,7 +120,7 @@ describe("harde og myke regler", () => {
 });
 
 describe("tidsregler", () => {
-  const school5 = rule({ kind: "DAILY_TIME", category: "SCHOOL", minutes: 300, days: ["MON"], sessions: null });
+  const school5 = rule({ kind: "DAILY_TIME", category: "SCHOOL", minutes: 300, days: ["MON"], sessions: null, skipWorkDays: null });
 
   it("advarer når en dag får for lite tid", () => {
     const r = check([block(MONDAY, "09:00", "13:00")], { rules: [school5] });

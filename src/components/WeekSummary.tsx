@@ -1,8 +1,9 @@
 import { calendarBetween } from "@/lib/calendar";
+import { dailyRuleApplies } from "@/lib/plan-validate";
 import { CATEGORIES, CATEGORY_INFO, type Category } from "@/lib/events";
 import { percentFor, scaleRules } from "@/lib/progression";
 import { useData } from "@/lib/store";
-import { weekDates, weekdayOf, weekRange } from "@/lib/week";
+import { weekDates, weekRange } from "@/lib/week";
 
 const hours = (m: number) => `${(Math.round(m / 6) / 10).toString().replace(".", ",")} t`;
 
@@ -11,13 +12,14 @@ export function WeekSummary({ monday }: { monday: string }) {
   const data = useData();
   const { from, to } = weekRange(monday);
   const events = calendarBetween(data, from, to).filter((e) => e.source !== "PRAYER");
+  const blocks = events.map((e) => ({ ...e, start: new Date(e.start), end: new Date(e.end) }));
   const rules = scaleRules(data.rules.filter((r) => r.enabled), percentFor(data.progression, monday));
 
   const goal = (c: Category) => {
     let total = 0;
     for (const r of rules) {
       const p = r.params;
-      if (p.kind === "DAILY_TIME" && p.category === c) total += p.minutes * weekDates(monday).filter((d) => p.days.includes(weekdayOf(d))).length;
+      if (p.kind === "DAILY_TIME" && p.category === c) total += p.minutes * weekDates(monday).filter((d) => dailyRuleApplies(p, d, blocks)).length;
       if (p.kind === "WEEKLY_TIME" && p.category === c) total += p.minMinutes;
     }
     return total;

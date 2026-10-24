@@ -14,9 +14,8 @@ export function describeChange(c: Change) {
     const shorter = minutes(c.to) < minutes(c.from) ? ` (kortet ned til ${minutes(c.to)} min)` : "";
     return `«${c.title}» flyttet fra ${span(c.from)} til ${span(c.to)}${shorter}`;
   }
-  return c.reason === "covered"
-    ? `«${c.title}» ${span(c.from)} fjernet: tiden er allerede dekket`
-    : `«${c.title}» ${span(c.from)} fjernet: fant ikke ledig tid`;
+  const why = { covered: "tiden er allerede dekket", workday: "ikke på jobbdager", "no-room": "fant ikke ledig tid" }[c.reason];
+  return `«${c.title}» ${span(c.from)} fjernet: ${why}`;
 }
 
 /** Hva som ble justert etter at du la inn eller flyttet noe, med angre. */
