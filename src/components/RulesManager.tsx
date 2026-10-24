@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { ProgressionCard } from "@/components/ProgressionCard";
 import { newRule, RuleEditor } from "@/components/RuleEditor";
 import { addRules, deleteRule, updateRule } from "@/lib/calendar";
 import { describeRule, ruleInputSchema, WEEKDAYS, type RuleInput } from "@/lib/rules";
@@ -44,37 +45,40 @@ export function RulesManager() {
 
   return (
     <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)]">
-      <section className="h-fit space-y-3 rounded-xl border border-line bg-surface p-4">
-        <h2 className="font-semibold">Forslag</h2>
-        <p className="text-sm text-muted">Legg til det som passer, og juster tallene etterpå. Bønnetidene er alltid faste og trenger ingen regel.</p>
-        {suggestions.length === 0 ? (
-          <p className="text-sm text-muted">Du har lagt til alle forslagene.</p>
-        ) : (
-          <>
-            <ul className="divide-y divide-line rounded-md border border-line">
-              {suggestions.map((s) => (
-                <li key={s.sourceText} className="flex items-center gap-3 px-3 py-2">
-                  <div className="min-w-0 flex-1">
-                    <p className="text-sm">{describeRule(s.params)}</p>
-                    <p className="text-xs text-muted">«{s.sourceText}»</p>
-                  </div>
-                  <button onClick={() => run((d) => addRules(d, [s]))} className="shrink-0 text-sm text-accent hover:underline">
-                    Legg til
-                  </button>
-                </li>
-              ))}
-            </ul>
-            {suggestions.length > 1 && (
-              <button
-                onClick={() => run((d) => addRules(d, suggestions))}
-                className="rounded-md bg-accent px-4 py-2 text-sm font-medium text-white hover:opacity-90"
-              >
-                Legg til alle ({suggestions.length})
-              </button>
-            )}
-          </>
-        )}
-      </section>
+      <div className="h-fit space-y-6">
+        <ProgressionCard />
+        <section className="space-y-3 rounded-xl border border-line bg-surface p-4">
+          <h2 className="font-semibold">Forslag</h2>
+          <p className="text-sm text-muted">Legg til det som passer, og juster tallene etterpå. Bønnetidene er alltid faste og trenger ingen regel.</p>
+          {suggestions.length === 0 ? (
+            <p className="text-sm text-muted">Du har lagt til alle forslagene.</p>
+          ) : (
+            <>
+              <ul className="divide-y divide-line rounded-md border border-line">
+                {suggestions.map((s) => (
+                  <li key={s.sourceText} className="flex items-center gap-3 px-3 py-2">
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm">{describeRule(s.params)}</p>
+                      <p className="text-xs text-muted">«{s.sourceText}»</p>
+                    </div>
+                    <button onClick={() => run((d) => addRules(d, [s]))} className="shrink-0 text-sm text-accent hover:underline">
+                      Legg til
+                    </button>
+                  </li>
+                ))}
+              </ul>
+              {suggestions.length > 1 && (
+                <button
+                  onClick={() => run((d) => addRules(d, suggestions))}
+                  className="rounded-md bg-accent px-4 py-2 text-sm font-medium text-white hover:opacity-90"
+                >
+                  Legg til alle ({suggestions.length})
+                </button>
+              )}
+            </>
+          )}
+        </section>
+      </div>
 
       <section className="space-y-3">
         <div className="flex items-center justify-between">

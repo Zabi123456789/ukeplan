@@ -151,7 +151,7 @@ describe("scheduleWeek med faste blokker og regler", () => {
 
 describe("planWeek", () => {
   function setup(): AppData {
-    let data: AppData = { ...emptyData(), rules: example };
+    let data: AppData = { ...emptyData(), rules: example, progression: { ...emptyData().progression, enabled: false } };
     const add = (title: string, from: string, to: string, extra: object) => {
       data = createEvent(data, { title, category: "SCHOOL", start: localDateTime(MONDAY, from).toISOString(), end: localDateTime(MONDAY, to).toISOString(), ...extra }).data;
     };
@@ -187,5 +187,25 @@ describe("planWeek", () => {
 
   it("avviser en uke som er over", () => {
     expect(() => planWeek(setup(), "2026-10-12", SUNDAY_BEFORE)).toThrow(/allerede over/);
+  });
+});
+
+describe("planWeek med opptrapping", () => {
+  const data = (startMonday: string): AppData => ({
+    ...emptyData(),
+    rules: [...defaults, school5],
+    progression: { enabled: true, startMonday, startPercent: 50, stepPercent: 10 },
+  });
+
+  it("første uke gir halvparten av tidsmålet", () => {
+    const { data: d, report } = planWeek(data(MONDAY), MONDAY, SUNDAY_BEFORE);
+    expect(report.percent).toBe(50);
+    const monday = d.events.filter((e) => localParts(new Date(e.start)).date === MONDAY);
+    expect(monday.reduce((s, e) => s + (Date.parse(e.end) - Date.parse(e.start)) / 60_000, 0)).toBe(150);
+    expect(report.warnings).toEqual([]); // skalert mål er oppfylt, ingen advarsel om 5 t
+  });
+
+  it("tredje uke gir 70 %", () => {
+    expect(planWeek(data("2026-10-12"), MONDAY, SUNDAY_BEFORE).report.percent).toBe(70);
   });
 });

@@ -8,11 +8,13 @@ Det er en ren frontend-app (React + Vite + TypeScript). All data lagres i nettle
 
 ## Funksjoner
 
-- **Uke- og dagsvisning:** dra for å lage en blokk, dra for å flytte eller endre lengde, og klikk for å redigere eller slette. På mobil starter kalenderen i dagsvisning.
+- **Uke- og dagsvisning:** dra i en ledig del for å lage en blokk, eller bruk «+ Ny blokk». Dra for å flytte eller endre lengde, og klikk for å redigere eller slette. På mobil starter kalenderen i dagsvisning.
 - **Låste blokker** (🔒) blir aldri flyttet av planleggeren, og må låses opp før du flytter eller sletter dem selv.
 - **Bønnetider for Oslo** (shia/Ja'fari) beregnes automatisk for hver dato. Standard er tre faste blokker: Fajr, Dhuhr + Asr og Maghrib + Isha. Du kan endre en enkelt dag manuelt, og metode, vinkler og regel for lyse netter stilles inn under Bønnetider.
 - **Regler, harde og myke:** tid per dag, tid per uke, ferdig innen et klokkeslett (f.eks. hjemme innen 19), våkentid og sperret tid. Forslag basert på de fire kategoriene ligger klare.
 - **Planlegg uka:** fyller uka ut fra reglene og viser hva som ikke fikk plass.
+- **Opptrapping for å bygge disiplin:** tidsmålene starter lavere og øker hver uke. Standard er 50 % i uke 1 og 10 prosentpoeng mer hver uke, til 100 % i uke 6. Begynner du i helgen, starter opptrappingen den kommende uka.
+- **Omplanlegging:** legger du inn eller flytter noe, flyttes bare de planlagte blokkene som kolliderer. Du ser hva som ble endret, og kan angre.
 - **Advarsel** når en blokk du legger inn overlapper en bønn eller en annen blokk.
 
 ## Kom i gang
@@ -46,6 +48,19 @@ npm run preview  # se på bygget lokalt
 
 Når du planlegger på nytt, byttes bare de ulåste planlagte blokkene fra nå og ut uka. Alt annet blir stående.
 
+### Opptrapping
+
+`src/lib/progression.ts` skalerer tid per dag og tid per uke til ukas prosent, rundet til nærmeste kvarter, før planleggeren kjører. Med standardinnstillingene blir «5 t skole per dag» 2,5 t i uke 1, 3 t i uke 2 og så videre, til 5 t fra uke 6. Våkentid, frister og sperret tid skaleres ikke. Startprosent, økning per uke og første uke stilles inn under Regler.
+
+### Omplanlegging når du legger inn noe
+
+`adjustAround` i `src/lib/replan.ts` kjører når du lagrer eller flytter en blokk:
+
+1. Finn ulåste planlagte blokker som kolliderer med den nye blokken. Låste blokker, bønner og blokker du har lagt inn selv røres ikke.
+2. For hver av dem: sjekk hvor mye tid kategorien fortsatt trenger. Hvis det du la inn dekker behovet, for eksempel en forelesning over en planlagt studieøkt, fjernes blokken.
+3. Ellers legges blokken så nær det opprinnelige tidspunktet som mulig samme dag, med pause til andre planlagte blokker. Mål per uke kan flyttes til en senere dag. Får blokken ikke plass, fjernes den.
+4. Endringene vises som en liste («Studietid flyttet fra man. 08:00–09:30 til man. 07:30–09:00»), og «Angre» setter alt tilbake slik det var.
+
 ### Bønnetider
 
 Bønnetidene beregnes med [adhan](https://github.com/batoulapps/adhan-js) i `src/lib/prayer.ts`.
@@ -74,6 +89,8 @@ src/
 ├── lib/
 │   ├── scheduler.ts         planleggeren (ren funksjon)
 │   ├── planner.ts           kjører planleggeren og bytter ut gamle planlagte blokker
+│   ├── replan.ts            flytter planlagte blokker som kolliderer med noe nytt
+│   ├── progression.ts       opptrapping av tidsmål uke for uke
 │   ├── plan-validate.ts     validering av en plan før lagring
 │   ├── free-time.ts         ledig tid: våkentid minus opptatt tid
 │   ├── prayer.ts            bønnetider og bønneblokker
@@ -82,12 +99,12 @@ src/
 │   ├── store.ts             lagring i localStorage
 │   ├── events.ts, week.ts   kategorier, tidssone og datoer
 │   └── *.test.ts            Vitest-tester
-└── components/              Calendar, EventDialog, PlanPanel, PrayerDialog,
-                             PrayerSettingsForm, RulesManager, RuleEditor
+└── components/              Calendar, ChangeLog, EventDialog, PlanPanel, PrayerDialog,
+                             PrayerSettingsForm, ProgressionCard, RulesManager, RuleEditor
 ```
 
 ## Hvordan AI ble brukt
 
 Appen er laget med Claude Code. Jeg beskrev ideen og kravene på norsk, og Claude laget først en arkitekturplan som vi justerte sammen. Blant annet endret vi bønnetidene til shia-praksis med tre bønner om dagen og gjorde våkentiden forskjellig for hverdager og helg.
 
-Første versjon brukte Claude API til planleggingen, med Next.js og en SQLite-database. Det krevde API-nøkkel og betaling. Derfor bygde vi appen om til en ren nettleser-app med en egen planleggingsalgoritme, slik som Eksamensklar. Hvert steg ble testet med Vitest og sjekket i nettleseren på PC- og mobilbredde før vi gikk videre.
+Første versjon brukte Claude API til planleggingen, med Next.js og en SQLite-database. Det krevde API-nøkkel og betaling. Derfor bygde vi appen om til en ren nettleser-app med en egen planleggingsalgoritme, slik som Eksamensklar. Til slutt kom opptrapping, fordi målet med kalenderen er å bygge disiplin gradvis, og omplanlegging når noe nytt legges inn. Hvert steg ble testet med Vitest og sjekket i nettleseren på PC- og mobilbredde før vi gikk videre.

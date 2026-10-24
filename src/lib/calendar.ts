@@ -21,6 +21,7 @@ import {
   type PrayerBlock,
   type PrayerSettings,
 } from "@/lib/prayer";
+import { defaultProgression, progressionSchema, type Progression } from "@/lib/progression";
 import { DEFAULT_RULES, ruleInputSchema, type Rule, type RuleInput } from "@/lib/rules";
 
 // All data i appen og operasjonene på den. Rene funksjoner: tar inn data og gir tilbake ny data.
@@ -28,6 +29,8 @@ import { DEFAULT_RULES, ruleInputSchema, type Rule, type RuleInput } from "@/lib
 
 export type PlanReport = {
   createdAt: string;
+  /** Prosent av tidsmålene uka ble planlagt med (opptrapping) */
+  percent: number;
   created: number;
   replaced: number;
   summary: string;
@@ -43,6 +46,7 @@ export type AppData = {
   prayerOverrides: Record<string, DayOverrides>;
   /** Siste planlegging per uke (nøkkel: mandag) */
   plans: Record<string, PlanReport>;
+  progression: Progression;
 };
 
 export class ActionError extends Error {}
@@ -56,6 +60,7 @@ export function emptyData(): AppData {
     prayerSettings: DEFAULT_PRAYER_SETTINGS,
     prayerOverrides: {},
     plans: {},
+    progression: defaultProgression(),
   };
 }
 
@@ -97,6 +102,7 @@ export function parseData(raw: unknown): AppData {
     prayerSettings: settings.success ? settings.data : base.prayerSettings,
     prayerOverrides: overrides.success ? overrides.data : {},
     plans: r.plans && typeof r.plans === "object" ? (r.plans as Record<string, PlanReport>) : {},
+    progression: progressionSchema.safeParse(r.progression).data ?? base.progression,
   };
 }
 
@@ -197,6 +203,10 @@ export function setPrayerSettings(data: AppData, settings: PrayerSettings): AppD
 }
 
 // ---------- Regler ----------
+
+export function setProgression(data: AppData, progression: Progression): AppData {
+  return { ...data, progression: progressionSchema.parse(progression) };
+}
 
 export function addRules(data: AppData, rules: RuleInput[]): AppData {
   const parsed = rules.map((r) => ruleInputSchema.parse(r));

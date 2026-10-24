@@ -11,11 +11,13 @@ import interactionPlugin from "@fullcalendar/interaction";
 import FullCalendar from "@fullcalendar/react";
 import timeGridPlugin from "@fullcalendar/timegrid";
 import { useEffect, useRef, useState } from "react";
+import { ChangeLog, type ChangeSet } from "@/components/ChangeLog";
 import { EventDialog, type EventDraft } from "@/components/EventDialog";
 import { PlanPanel } from "@/components/PlanPanel";
 import { PrayerDialog } from "@/components/PrayerDialog";
-import { calendarBetween, createEvent, deleteEvent, updateEvent } from "@/lib/calendar";
+import { calendarBetween, createEvent, deleteEvent, updateEvent, type AppData } from "@/lib/calendar";
 import { CATEGORIES, CATEGORY_INFO, type CalendarEvent } from "@/lib/events";
+import { adjustAround } from "@/lib/replan";
 import { getData, update, useData } from "@/lib/store";
 import { localParts, mondayOf } from "@/lib/week";
 
@@ -29,6 +31,21 @@ function conflictNotice(conflicts: CalendarEvent[]): Notice | null {
 
 const errorText = (e: unknown) => (e instanceof Error ? e.message : String(e));
 
+/** Stabil hendelseskilde. Et promise gjør at hendelsene leveres etter opptegningen (React advarer ellers). */
+async function loadEvents(info: EventSourceFuncArg) {
+  return calendarBetween(getData(), info.start, info.end).map((e) => ({
+    id: e.id,
+    title: e.title,
+    start: e.start,
+    end: e.end,
+    backgroundColor: CATEGORY_INFO[e.category].color,
+    borderColor: CATEGORY_INFO[e.category].color,
+    editable: !e.locked,
+    classNames: [e.source === "PRAYER" ? "is-prayer" : e.locked ? "is-locked" : "", e.source === "AI" ? "is-ai" : ""].filter(Boolean),
+    extendedProps: e,
+  }));
+}
+
 export function Calendar() {
   const calendarRef = useRef<FullCalendar>(null);
   const data = useData();
@@ -36,37 +53,31 @@ export function Calendar() {
   const [notice, setNotice] = useState<Notice | null>(null);
   const [prayerDate, setPrayerDate] = useState<string | null>(null);
   const [monday, setMonday] = useState<string | null>(null);
+  const [changeSet, setChangeSet] = useState<(ChangeSet & { undo: AppData }) | null>(null);
 
   // Tegn kalenderen på nytt når dataene endres (også fra en annen fane)
   useEffect(() => {
     calendarRef.current?.getApi().refetchEvents();
   }, [data]);
 
-  function loadEvents(info: EventSourceFuncArg) {
-    return calendarBetween(getData(), info.start, info.end).map((e) => ({
-      id: e.id,
-      title: e.title,
-      start: e.start,
-      end: e.end,
-      backgroundColor: CATEGORY_INFO[e.category].color,
-      borderColor: CATEGORY_INFO[e.category].color,
-      editable: !e.locked,
-      classNames: [e.source === "PRAYER" ? "is-prayer" : e.locked ? "is-locked" : "", e.source === "AI" ? "is-ai" : ""].filter(Boolean),
-      extendedProps: e,
-    }));
+  function openDraft(start: Date, end: Date) {
+    setDraft({ title: "", category: "OTHER", start, end, locked: false, location: null, notes: null });
   }
 
   function onSelect(info: DateSelectArg) {
     info.view.calendar.unselect();
-    setDraft({
-      title: "",
-      category: "SCHOOL",
-      start: info.start,
-      end: info.end,
-      locked: false,
-      location: null,
-      notes: null,
-    });
+    openDraft(info.start, info.end);
+  }
+
+  /** «Ny blokk»: neste hele time hvis du ser på uka du er i, ellers kl. 09 første dag i visningen. */
+  function newBlock() {
+    const view = calendarRef.current?.getApi().view;
+    const now = new Date();
+    let start = new Date(now.getFullYear(), now.getMonth(), now.getDate(), now.getHours() + 1);
+    if (view && (start < view.activeStart || start >= view.activeEnd)) {
+      start = new Date(view.activeStart.getFullYear(), view.activeStart.getMonth(), view.activeStart.getDate(), 9);
+    }
+    openDraft(start, new Date(start.getTime() + 60 * 60_000));
   }
 
   function onEventClick(info: EventClickArg) {
@@ -76,12 +87,28 @@ export function Calendar() {
     setDraft({ ...e, start: new Date(e.start), end: new Date(e.end) });
   }
 
+  /** Lagrer endringen og flytter planlagte blokker som kolliderer med den. */
+  function commit(before: AppData, result: { data: AppData; event: CalendarEvent; conflicts: CalendarEvent[] }, verb: string) {
+    const adjusted = adjustAround(result.data, result.event.id);
+    update(() => adjusted.data);
+    const handled = new Set(adjusted.changes.map((c) => c.id));
+    setNotice(conflictNotice(result.conflicts.filter((c) => !handled.has(c.id))));
+    setChangeSet(adjusted.changes.length ? { title: `${verb} «${result.event.title}»`, changes: adjusted.changes, undo: before } : null);
+  }
+
+  function undo() {
+    if (!changeSet) return;
+    const previous = changeSet.undo;
+    update(() => previous);
+    setChangeSet(null);
+    setNotice(null);
+  }
+
   function onEventChange(info: EventChangeArg) {
     try {
+      const before = getData();
       const changes = { start: info.event.start?.toISOString(), end: info.event.end?.toISOString() };
-      const result = updateEvent(getData(), info.event.id, changes);
-      update(() => result.data);
-      setNotice(conflictNotice(result.conflicts));
+      commit(before, updateEvent(before, info.event.id, changes), "Flyttet");
     } catch (err) {
       info.revert();
       setNotice({ kind: "error", text: errorText(err) });
@@ -98,16 +125,16 @@ export function Calendar() {
       location: d.location,
       notes: d.notes,
     };
-    const result = d.id ? updateEvent(getData(), d.id, input) : createEvent(getData(), input);
-    update(() => result.data);
+    const before = getData();
+    commit(before, d.id ? updateEvent(before, d.id, input) : createEvent(before, input), d.id ? "Endret" : "La til");
     setDraft(null);
-    setNotice(conflictNotice(result.conflicts));
   }
 
   async function remove(id: string) {
     update((current) => deleteEvent(current, id));
     setDraft(null);
     setNotice(null);
+    setChangeSet(null);
   }
 
   return (
@@ -115,14 +142,19 @@ export function Calendar() {
       {monday && <PlanPanel monday={monday} />}
 
       <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted">
+        <button onClick={newBlock} className="rounded-md border border-line bg-surface px-3 py-1.5 text-sm text-foreground hover:bg-hover">
+          + Ny blokk
+        </button>
         {CATEGORIES.map((c) => (
           <span key={c} className="flex items-center gap-1.5">
             <span className="size-2.5 rounded-sm" style={{ background: CATEGORY_INFO[c].color }} />
             {CATEGORY_INFO[c].label}
           </span>
         ))}
-        <span className="ml-auto">Dra i kalenderen for å lage en blokk. Klikk på en blokk eller bønn for å redigere.</span>
+        <span className="ml-auto">Dra i en ledig del av kalenderen for å lage en blokk. Klikk på en blokk eller bønn for å redigere.</span>
       </div>
+
+      {changeSet && <ChangeLog set={changeSet} onUndo={undo} onClose={() => setChangeSet(null)} />}
 
       {notice && (
         <div
@@ -159,7 +191,7 @@ export function Calendar() {
           selectMirror
           editable
           eventOverlap
-          events={(info, success) => success(loadEvents(info))}
+          events={loadEvents}
           datesSet={(arg: DatesSetArg) => setMonday(mondayOf(localParts(arg.start).date))}
           select={onSelect}
           eventClick={onEventClick}

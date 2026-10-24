@@ -1,6 +1,7 @@
 import { ActionError, calendarBetween, newId, type AppData, type PlanReport } from "@/lib/calendar";
 import type { CalendarEvent } from "@/lib/events";
 import { ceilToQuarter } from "@/lib/free-time";
+import { percentFor, scaleRules } from "@/lib/progression";
 import type { FixedBlock } from "@/lib/plan-validate";
 import { scheduleWeek } from "@/lib/scheduler";
 import { weekRange } from "@/lib/week";
@@ -21,7 +22,9 @@ export function planWeek(data: AppData, monday: string, now = new Date()): { dat
     .filter((e) => !replaceable.has(e.id))
     .map((e) => ({ ...e, start: new Date(e.start), end: new Date(e.end) }));
 
-  const result = scheduleWeek({ monday, now, rules: data.rules, fixed });
+  // Opptrapping: tidsmålene skaleres etter hvor langt i opptrappingen uka er
+  const percent = percentFor(data.progression, monday);
+  const result = scheduleWeek({ monday, now, rules: scaleRules(data.rules, percent), fixed });
 
   // Feil uten regel (overlapp, utenfor uka) betyr en feil i planleggeren: da lagres ingenting.
   const systemErrors = result.errors.filter((e) => e.ruleId === null);
@@ -40,6 +43,7 @@ export function planWeek(data: AppData, monday: string, now = new Date()): { dat
   }));
   const report: PlanReport = {
     createdAt: now.toISOString(),
+    percent,
     created: created.length,
     replaced: replaceable.size,
     summary: result.summary,

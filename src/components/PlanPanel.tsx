@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { planWeek } from "@/lib/planner";
+import { percentFor, progressionWeek } from "@/lib/progression";
 import { update, useData } from "@/lib/store";
 import { weekRange } from "@/lib/week";
 
@@ -35,6 +36,7 @@ export function PlanPanel({ monday }: { monday: string }) {
   }
 
   const problems = (report?.errors.length ?? 0) + (report?.warnings.length ?? 0);
+  const percent = percentFor(data.progression, monday);
 
   return (
     <div className="space-y-2 rounded-xl border border-line bg-surface p-3">
@@ -48,7 +50,8 @@ export function PlanPanel({ monday }: { monday: string }) {
           </button>
         )}
         <p className="min-w-60 flex-1 text-xs text-muted">
-          Uka fra {dateLabel(monday)}, fra nå og ut uka. Bønner, låste blokker og det du har lagt inn selv blir stående.{" "}
+          Uka fra {dateLabel(monday)}, fra nå og ut uka.
+          {percent < 100 && ` Opptrapping uke ${progressionWeek(data.progression, monday)}: ${percent} % av tidsmålene.`} Bønner, låste blokker og det du har lagt inn selv blir stående.{" "}
           <a href="#regler" className="text-accent hover:underline">
             Reglene
           </a>{" "}

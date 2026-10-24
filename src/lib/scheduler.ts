@@ -201,7 +201,7 @@ function preference(category: Category, start: Date, date: string, fixed: FixedB
 }
 
 /** Strengeste «ferdig innen» for kategorien denne dagen (regler uten sted gjelder kategorien direkte). */
-function deadlineFor(date: string, category: Category, rules: Rule[]) {
+export function deadlineFor(date: string, category: Category, rules: Rule[]) {
   let best: { time: Date; strength: Strength } | null = null;
   for (const r of rules) {
     const p = r.params;
@@ -216,7 +216,7 @@ function deadlineFor(date: string, category: Category, rules: Rule[]) {
 }
 
 /** «Hjemme innen 19»: blokker som slutter etter fristen ligger hjemme. Ellers lar vi stedet stå åpent. */
-function locationFor(date: string, end: Date, rules: Rule[]): ProposedBlock["location"] {
+export function locationFor(date: string, end: Date, rules: Rule[]): ProposedBlock["location"] {
   const homeBy = rules.some(
     (r) => r.params.kind === "LATEST_END" && r.params.location === "OUT" && r.params.days.includes(weekdayOf(date)) && end > localDateTime(date, r.params.time),
   );
@@ -224,7 +224,7 @@ function locationFor(date: string, end: Date, rules: Rule[]): ProposedBlock["loc
 }
 
 /** Sperret tid som berører datoen (også fra kvelden før hvis den går over midnatt). */
-function blockedSpans(date: string, rules: Rule[]): Interval[] {
+export function blockedSpans(date: string, rules: Rule[]): Interval[] {
   const spans: Interval[] = [];
   for (const r of rules) {
     const p = r.params;
